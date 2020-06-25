@@ -3,16 +3,27 @@ using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 
 namespace org.daisy.jnet {
-    public struct JNIVersion
-    {
-        //public const int JNI_VERSION_1_1 = 0x00010001;
-        public const int JNI_VERSION_1_2 = 0x00010002;
-        public const int JNI_VERSION_1_4 = 0x00010004;
-        public const int JNI_VERSION_1_6 = 0x00010006;
-        public const int JNI_VERSION_1_8 = 0x00010008;
-        public const int JNI_VERSION_9 = 0x00090000;
-        public const int JNI_VERSION_10 = 0x000a0000;
-    }
+
+    /// <summary>
+    /// JNI Version to pass to the interface.
+    /// Possible values :<br/>
+    /// JNI_VERSION_1_1, (possibly not supported)<br/>
+    /// JNI_VERSION_1_2,<br/>
+    /// JNI_VERSION_1_4,<br/>
+    /// JNI_VERSION_1_6,<br/>
+    /// JNI_VERSION_1_8,<br/>
+    /// JNI_VERSION_9,  <br/>
+    /// JNI_VERSION_10 (dafault targeted version) <br/>
+    /// </summary>
+    public enum JNIVersion : int {
+        JNI_VERSION_1_1 = 0x00010001,
+        JNI_VERSION_1_2 = 0x00010002,
+        JNI_VERSION_1_4 = 0x00010004,
+        JNI_VERSION_1_6 = 0x00010006,
+        JNI_VERSION_1_8 = 0x00010008,
+        JNI_VERSION_9 = 0x00090000,
+        JNI_VERSION_10 = 0x000a0000
+}
 
     public struct JNIBooleanValue
     {

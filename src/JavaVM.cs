@@ -10,11 +10,58 @@ using System.Runtime.CompilerServices;
 using System.Runtime.ConstrainedExecution;
 using System.Security;
 using Microsoft.Win32;
+using System.Reflection;
+
 
 
 namespace org.daisy.jnet {
     public unsafe class JavaVM : IDisposable
     {
+        private IntPtr _jvm;
+        private JNIInvokeInterface _functions;
+        public const CallingConvention CC = CallingConvention.Winapi;
+
+        private static IntPtr _dllPtr = IntPtr.Zero;
+
+        // If loading the library is not enough for DLL Import to get the correct jvml
+        // https://stackoverflow.com/questions/16518943/dllimport-or-loadlibrary-for-best-performance
+
+        private static class KernelMethods {
+
+            [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+            public static extern IntPtr LoadLibrary(string lpFileName);
+
+            [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+            public static extern bool FreeLibrary(IntPtr hModule);
+
+            [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+            public static extern bool SetDllDirectory(string lpPathName);
+        }
+
+        /// <summary>
+        /// Load a JVM dll to use as java server for the java vm calls 
+        /// Notes : 
+        /// - the previous library is released if one was already launched
+        /// - Alledgedly, a library previously load is prioritized
+        /// https://docs.microsoft.com/fr-fr/windows/win32/dlls/dynamic-link-library-search-order?redirectedfrom=MSDN
+        /// </summary>
+        /// <param name="jvm_dll_path"></param>
+        public static void loadAssembly(string jvm_dll_path) {
+            if(_dllPtr != IntPtr.Zero) {
+                KernelMethods.FreeLibrary(_dllPtr);
+            }
+            _dllPtr = KernelMethods.LoadLibrary(jvm_dll_path);
+            // Just in case :
+            // according to DLL search order, previously loaded DLL are prioritized
+            // But just in case, i also set the dll search directory to ensure 
+            bool dllDirValid = KernelMethods.SetDllDirectory(Path.GetDirectoryName(jvm_dll_path));
+            if (_dllPtr == IntPtr.Zero || !dllDirValid) {
+                throw new Exception($"An error occured while loading {jvm_dll_path}");
+            }
+        }
+
+
+        
         /// <summary>
         /// Mapping to JNI C function _JNI_IMPORT_OR_EXPORT_ jint JNICALL JNI_CreateJavaVM(JavaVM** pvm, void** penv, void* args);
         /// </summary>
@@ -22,29 +69,27 @@ namespace org.daisy.jnet {
         /// <param name="pEnv"></param>
         /// <param name="Args"></param>
         /// <returns></returns>
-        [DllImport("jvm.dll", CallingConvention = JavaVM.CC)]
+        [DllImport("jvm", CallingConvention = JavaVM.CC)]
         internal static extern int JNI_CreateJavaVM(out IntPtr pVM, out IntPtr pEnv, JavaVMInitArgs* Args);
 
         /// <summary>
         /// Mapping to JNI C function _JNI_IMPORT_OR_EXPORT_ jint JNICALL JNI_GetDefaultJavaVMInitArgs(void* args);
         /// </summary>
-        /// <param name="pVM"></param>
-        /// <param name="pEnv"></param>
-        /// <param name="Args"></param>
+        /// <param name="args"></param>
         /// <returns></returns>
-        [DllImport("jvm.dll", CallingConvention = JavaVM.CC)]
+        [DllImport("jvm", CallingConvention = JavaVM.CC)]
         internal static extern int JNI_GetDefaultJavaVMInitArgs(JavaVMInitArgs* args);
 
         /// <summary>
         /// Mapping to JNI C function _JNI_IMPORT_OR_EXPORT_ jint JNICALL JNI_GetCreatedJavaVMs(JavaVM **, jsize, jsize *);
         /// </summary>
         /// <param name="pVM"></param>
-        /// <param name="pEnv"></param>
-        /// <param name="Args"></param>
+        /// <param name="jSize1"></param>
+        /// <param name="jSize2"></param>
         /// <returns></returns>
-        [DllImport("jvm.dll", CallingConvention = JavaVM.CC)]
+        [DllImport("jvm", CallingConvention = JavaVM.CC)]
         internal static extern int JNI_GetCreatedJavaVMs(out IntPtr pVM, int jSize1, [Out] out int jSize2);
-
+        
 
 
         // We need to have delegates for each function pointer for the methods 
@@ -103,11 +148,11 @@ namespace org.daisy.jnet {
         private JNIInvokeInterface_.DetachCurrentThread _detachCurrentThread;
         private JNIInvokeInterface_.GetEnv _getEnv;
 
-        private IntPtr _jvm;
-        private JNIInvokeInterface _functions;
-
-        public const CallingConvention CC = CallingConvention.Winapi;
-
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="pointer"></param>
         public JavaVM(IntPtr pointer)
         {
             this._jvm = pointer;
@@ -133,6 +178,7 @@ namespace org.daisy.jnet {
         public static void GetDelegateForFunctionPointer<T>(IntPtr ptr, ref T res)
         {  // Converts an unmanaged function pointer to a delegate.
             res = (T)(object)Marshal.GetDelegateForFunctionPointer(ptr, typeof(T));
+            // Note : after .net framework 4.5.1, function is now using template notation instead of parameter for the type
         }
 
         internal int AttachCurrentThread(out JNIEnv penv, JavaVMInitArgs? args)
