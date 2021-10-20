@@ -44,10 +44,15 @@ namespace org.daisy.jnet {
         /// </summary>
         /// <param name="jvm_dll_path"></param>
         public static void loadAssembly(string jvm_dll_path) {
+            int lastError = 0;
             if(_dllPtr != IntPtr.Zero) {
                 KernelMethods.FreeLibrary(_dllPtr);
             }
             _dllPtr = KernelMethods.LoadLibrary(jvm_dll_path);
+            if(_dllPtr == IntPtr.Zero) {
+                lastError = Marshal.GetLastWin32Error();
+                throw new Exception($"An error occured while loading {jvm_dll_path} - code " + lastError);
+            }
             // Just in case :
             // according to DLL search order, previously loaded DLL are prioritized
             // But just in case, i also set the dll search directory to ensure 

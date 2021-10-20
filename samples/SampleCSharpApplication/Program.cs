@@ -15,11 +15,10 @@ namespace SampleApplication {
 
             // Instantiate the JNI interface assembly
             JavaNativeInterface jni = new JavaNativeInterface();
-            Dictionary<string, string> options = new Dictionary<string, string>();
+            List<string> options = new List<string>();
             
             // Setting the class path to the jar that containes the classes to use
-            options.Add("-Djava.class.path",
-                workingDir + "target\\SampleJavaApplication-0.0.1-SNAPSHOT.jar");
+            options.Add("-Djava.class.path="+ workingDir + "target\\SampleJavaApplication-0.0.1-SNAPSHOT.jar");
             // If your jar need other jars as dependencies, you may need to add them in the classpath :
             // + ";" + workingDir + "target\\dependency.jar"); 
 

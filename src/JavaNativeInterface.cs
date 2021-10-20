@@ -62,6 +62,9 @@ namespace org.daisy.jnet {
         /// <param name="forcedJVMDllPath">Path of the jvm.dll file</param>
         public JavaNativeInterface(string forcedJVMDllPath = "") {
             if (forcedJVMDllPath.Length > 0) {
+                if (!File.Exists(forcedJVMDllPath)) {
+                    throw new Exception("the jvm dll requested does not exists : " + forcedJVMDllPath);
+                }
                 JavaNativeInterface.__jvmDllPath = forcedJVMDllPath;
             } else if (JavaNativeInterface.__jvmDllPath.Length == 0) {
                 // Search for a java runtime near the current assembly
@@ -74,8 +77,10 @@ namespace org.daisy.jnet {
                 } else {
                     string envJavaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
                     if (envJavaHome.Length > 0) {
-                        searchResult = Directory.GetFiles(envJavaHome, "jvm.dll", SearchOption.AllDirectories);
-                        if (searchResult.Length > 0) {
+                        // Retrieve the server jvm.dll
+                        //searchResult = Directory.GetFiles(envJavaHome, "bin\\server\\jvm.dll", SearchOption.AllDirectories);
+                        searchResult = new string[] { Path.Combine(envJavaHome, "bin", "server", "jvm.dll") };
+                        if (File.Exists(searchResult[0])) {
                             JavaNativeInterface.__jvmDllPath = searchResult[0];
                         }
                     } else {
@@ -103,9 +108,9 @@ namespace org.daisy.jnet {
                         }
                     }
                 }
-                Console.WriteLine("Using " + JavaNativeInterface.__jvmDllPath);
-                JavaVM.loadAssembly(JavaNativeInterface.__jvmDllPath);
             }
+            Console.WriteLine("Using " + JavaNativeInterface.__jvmDllPath);
+            JavaVM.loadAssembly(JavaNativeInterface.__jvmDllPath);
         }
 
         /// <summary>
@@ -114,7 +119,7 @@ namespace org.daisy.jnet {
         /// <param name="options"></param>
         /// <param name="AddToExistingJVM"></param>
         /// <param name="targetVersion">Specified the version</param>
-        public void LoadVM(Dictionary<string, string> options, bool AddToExistingJVM = false, JNIVersion targetVersion = JNIVersion.JNI_VERSION_10) {
+        public void LoadVM(List<string> options, bool AddToExistingJVM = false, JNIVersion targetVersion = JNIVersion.JNI_VERSION_10) {
 
             // Set the directory to the location of the JVM.dll. 
             // This will ensure that the API call JNI_CreateJavaVM will work
@@ -132,9 +137,8 @@ namespace org.daisy.jnet {
                 args.nOptions = options.Count;
                 var opt = new JavaVMOption[options.Count];
                 int i = 0;
-                foreach (KeyValuePair<string, string> kvp in options) {
-                    string optionString = kvp.Key.ToString() + "=" + kvp.Value.ToString();
-                    opt[i++].optionString = Marshal.StringToHGlobalAnsi(optionString);
+                foreach (string option in options) {
+                    opt[i++].optionString = Marshal.StringToHGlobalAnsi(option);
                 }
                 fixed (JavaVMOption* a = &opt[0]) {
                     // prevents the garbage collector from relocating the opt variable as this is used in unmanaged code that the gc does not know about
