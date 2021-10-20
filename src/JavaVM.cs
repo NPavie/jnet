@@ -5,12 +5,9 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Security.Permissions;
 using System.Runtime.CompilerServices;
 using System.Runtime.ConstrainedExecution;
 using System.Security;
-using Microsoft.Win32;
-using System.Reflection;
 
 
 
@@ -39,10 +36,10 @@ namespace org.daisy.jnet {
         }
 
         /// <summary>
-        /// Load a JVM dll to use as java server for the java vm calls 
-        /// Notes : 
-        /// - the previous library is released if one was already launched
-        /// - Alledgedly, a library previously load is prioritized
+        /// Load a JVM dll to use as java server for the java vm calls <br/>
+        /// Notes : <br/>
+        /// - the previous library is released if one was already launched<br/>
+        /// - Alledgedly, a library previously load is prioritized<br/>
         /// https://docs.microsoft.com/fr-fr/windows/win32/dlls/dynamic-link-library-search-order?redirectedfrom=MSDN
         /// </summary>
         /// <param name="jvm_dll_path"></param>

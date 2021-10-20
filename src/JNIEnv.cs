@@ -191,7 +191,7 @@ namespace org.daisy.jnet {
             return res;
         }
 
-        public IntPtr GetStaticmethodID(jclass clazz, string name, string sig) {
+        public IntPtr GetStaticMethodID(jclass clazz, string name, string sig) {
             if (getStaticmethodID == null) {
                 JavaVM.GetDelegateForFunctionPointer(functions.GetStaticmethodID, ref getStaticmethodID);
             }
@@ -389,11 +389,11 @@ namespace org.daisy.jnet {
             CheckJavaExceptionAndThrow();
         }
 
-        public IntPtr CallStaticObjectMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
+        public IntPtr CallStaticObjectMethod(jclass clazz, jmethodID methodID, params JValue[] args) {
             if (callObjectMethod == null) {
                 JavaVM.GetDelegateForFunctionPointer(functions.CallStaticObjectMethodA, ref callStaticObjectMethod);
             }
-            IntPtr res = callStaticObjectMethod(Env, obj, methodID, args);
+            IntPtr res = callStaticObjectMethod(Env, clazz, methodID, args);
             CheckJavaExceptionAndThrow();
             return res;
         }
@@ -1121,7 +1121,7 @@ namespace org.daisy.jnet {
 
         #region exceptions
 
-        public IntPtr ExceptionOccurred() {
+        public jthrowable ExceptionOccurred() {
             if (exceptionOccurred == null) {
                 JavaVM.GetDelegateForFunctionPointer(functions.ExceptionOccurred, ref exceptionOccurred);
             }
@@ -1173,33 +1173,55 @@ namespace org.daisy.jnet {
             Marshal.FreeHGlobal(uni);
         }
 
-        public string CatchJavaException(bool fullstacktrace = false) {
-            IntPtr occurred = ExceptionOccurred();
-            if (occurred != null) {
+        public Exception CatchJavaException(bool fullstacktrace = false) {
+            jthrowable occurred = ExceptionOccurred();
+            if (occurred != null && occurred != IntPtr.Zero) {
                 ExceptionClear();
-                IntPtr ExceptionClass = this.GetObjectClass(occurred);
+                jclass ExceptionClass = this.GetObjectClass(occurred);
                 // TODO : if full stack trace requested, use 
                 // StringWriter sw = new StringWriter();
                 // PrintWriter pw = new PrintWriter(sw);
                 // e.printStackTrace(pw);
                 // sw.toString()
                 // Note : there seems to be a new stack walking API since java 9 : https://www.baeldung.com/java-9-stackwalking-api
-                IntPtr mid = GetMethodID(ExceptionClass, "toString", "()Ljava/lang/String;");
+                jmethodID mid = GetMethodID(ExceptionClass, "toString", "()Ljava/lang/String;");
                 IntPtr jstr = CallObjectMethod(occurred, mid, new JValue() { });
                 
-                return JStringToString(jstr);
+                return new Exception(JStringToString(jstr));
             }
-            return "";
+            return null;
         }
 
+        /// <summary>
+        /// Check if an exception has occured and throw back a simple exception to stop execution.<br/>
+        /// For now, java exception details needs to be retrieved by CatchJavaException
+        /// after catching this exception.<br/>
+        /// In the future, it might be simpler to directly throw back the java exception when it occurs
+        /// </summary>
+        /// <returns></returns>
         public unsafe bool CheckJavaExceptionAndThrow() {
             if (exceptionCheck == null) {
                 JavaVM.GetDelegateForFunctionPointer(functions.ExceptionCheck, ref exceptionCheck);
             }
             if (exceptionCheck(Env) != 0) {
-                throw new Exception("ExceptionCheck() failed: ");
-            }
+                jthrowable occurred = ExceptionOccurred();
+                if (occurred != null && occurred != IntPtr.Zero) {
+                    ExceptionClear();
+                    jclass ExceptionClass = this.GetObjectClass(occurred);
+                    // TODO : if full stack trace requested, use 
+                    // StringWriter sw = new StringWriter();
+                    // PrintWriter pw = new PrintWriter(sw);
+                    // e.printStackTrace(pw);
+                    // sw.toString()
+                    // Note : there seems to be a new stack walking API since java 9 : https://www.baeldung.com/java-9-stackwalking-api
+                    jmethodID mid = GetMethodID(ExceptionClass, "toString", "()Ljava/lang/String;");
+                    IntPtr jstr = CallObjectMethod(occurred, mid, new JValue() { });
 
+                    throw new Exception(JStringToString(jstr));
+                } else {
+                    throw new Exception("Unknown exception raised by JNI");
+                }
+            }
             return exceptionCheck(Env) != 0;
         }
 

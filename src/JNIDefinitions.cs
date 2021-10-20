@@ -16,12 +16,33 @@ namespace org.daisy.jnet {
     /// JNI_VERSION_10 (dafault targeted version) <br/>
     /// </summary>
     public enum JNIVersion : int {
+        /// <summary>
+        /// Java 1
+        /// </summary>
         JNI_VERSION_1_1 = 0x00010001,
+        /// <summary>
+        /// Java 2
+        /// </summary>
         JNI_VERSION_1_2 = 0x00010002,
+        /// <summary>
+        /// Java 4
+        /// </summary>
         JNI_VERSION_1_4 = 0x00010004,
+        /// <summary>
+        /// Java 6
+        /// </summary>
         JNI_VERSION_1_6 = 0x00010006,
+        /// <summary>
+        /// Java 8
+        /// </summary>
         JNI_VERSION_1_8 = 0x00010008,
+        /// <summary>
+        /// Java 9
+        /// </summary>
         JNI_VERSION_9 = 0x00090000,
+        /// <summary>
+        /// Java 10 and superior
+        /// </summary>
         JNI_VERSION_10 = 0x000a0000
 }
 
