@@ -55,6 +55,8 @@
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
+    <Content Include="src\main\java\DefaultPackageSample.java" />
+    <Content Include="src\main\java\org\daisy\jnet\SampleApplication.java" />
     <Content Include="target\SampleJavaAppWithJRE-0.0.1-SNAPSHOT.jar">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

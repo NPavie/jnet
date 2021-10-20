@@ -25,6 +25,11 @@ public class SampleApplication {
 		
 	}
 	
+	public static void main() {
+		System.out.println("This is a simple execution test with no args");
+		
+	}
+	
 	public String getTestString() {
 		return this.testString;
 	}

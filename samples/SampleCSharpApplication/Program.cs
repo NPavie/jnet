@@ -26,14 +26,19 @@ namespace SampleApplication {
             // Load a new JVM
             jni.LoadVM(options, false);
             try {
-                IntPtr SampleApplicationClass = IntPtr.Zero;
-                IntPtr SampleApplicationObject = jni.InstantiateJavaObject("org/daisy/jnet/SampleApplication", out SampleApplicationClass);
+                IntPtr SampleApplicationClass = jni.GetJavaClass("org/daisy/jnet/SampleApplication");
+                IntPtr SampleApplicationObject = jni.NewObject(SampleApplicationClass);
                 string testString = jni.CallMethod<string>(SampleApplicationClass, SampleApplicationObject, "getTestString", "()Ljava/lang/String;");
                 Console.WriteLine(testString);
 
-                SampleApplicationObject = jni.InstantiateJavaObject("org/daisy/jnet/SampleApplication", out SampleApplicationClass, "(Ljava/lang/String;)V","I'm a string sent from C#");
+                SampleApplicationObject = jni.NewObject(SampleApplicationClass, "(Ljava/lang/String;)V", "I'm a string sent from C#");
                 testString = jni.CallMethod<string>(SampleApplicationClass, SampleApplicationObject, "getTestString", "()Ljava/lang/String;");
                 Console.WriteLine(testString);
+
+                jni.CallVoidMethod(SampleApplicationClass, IntPtr.Zero, "main", "()V");
+                jni.CallVoidMethod(SampleApplicationClass, IntPtr.Zero, "main", "([Ljava/lang/String;)V", new object[]{ new string[] { } });
+
+
             } catch (Exception e) {
                 Console.WriteLine(e.ToString());
             }

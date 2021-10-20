@@ -13,4 +13,9 @@ public class DefaultPackageSample {
 		return javaExecutablePath;
 	}
 
+	public static void main(String[] args) {
+		System.out.println("main called");
+	}
+
+
 }
