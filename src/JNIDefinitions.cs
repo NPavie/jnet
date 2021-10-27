@@ -99,24 +99,59 @@ namespace org.daisy.jnet {
     [StructLayout(LayoutKind.Explicit)]
     public struct JValue
     {
+        /// <summary>
+        /// boolean type in signatures
+        /// </summary>
         [FieldOffset(0)]
-        public byte z;
+        public byte Z;
+
+        /// <summary>
+        /// byte type in signatures
+        /// </summary>
         [FieldOffset(0)]
-        public byte b;
+        public byte B;
+
+        /// <summary>
+        /// char type in signatures
+        /// </summary>
         [FieldOffset(0)]
-        public char c;
+        public char C;
+
+        /// <summary>
+        /// short type in signatures
+        /// </summary>
         [FieldOffset(0)]
-        public short s;
+        public short S;
+
+        /// <summary>
+        /// Boolean type in signatures
+        /// </summary>
         [FieldOffset(0)]
-        public int i;
+        public int I;
+
+        /// <summary>
+        /// long type in signatures
+        /// </summary>
         [FieldOffset(0)]
-        public long j;
+        public long J;
+
+        /// <summary>
+        /// float type in signatures
+        /// </summary>
         [FieldOffset(0)]
-        public float f;
+        public float F;
+
+        /// <summary>
+        /// double type in signatures
+        /// </summary>
         [FieldOffset(0)]
-        public double d;
+        public double D;
+
+        /// <summary>
+        /// Fully qualified class of object in signatures
+        /// </summary>
         [FieldOffset(0)]
-        public IntPtr l;
+        public IntPtr L;
     }
 
     // JDK 1.6
