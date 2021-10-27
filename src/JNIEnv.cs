@@ -46,6 +46,7 @@ using jmethodID = System.IntPtr;
 using jobjectRefType = System.IntPtr;
 
 using JNIEnvPtr = System.IntPtr;
+using System.Collections.Generic;
 
 // const char * types are mapped by [MarshalAs(UnmanagedType.LPStr)] string in delegation declaration
 
@@ -1208,16 +1209,35 @@ namespace org.daisy.jnet {
                 if (occurred != null && occurred != IntPtr.Zero) {
                     ExceptionClear();
                     jclass ExceptionClass = this.GetObjectClass(occurred);
+                    
                     // TODO : if full stack trace requested, use 
                     // StringWriter sw = new StringWriter();
                     // PrintWriter pw = new PrintWriter(sw);
                     // e.printStackTrace(pw);
                     // sw.toString()
                     // Note : there seems to be a new stack walking API since java 9 : https://www.baeldung.com/java-9-stackwalking-api
-                    jmethodID mid = GetMethodID(ExceptionClass, "toString", "()Ljava/lang/String;");
-                    IntPtr jstr = CallObjectMethod(occurred, mid, new JValue() { });
+                    jmethodID ExceptionToString = GetMethodID(ExceptionClass, "toString", "()Ljava/lang/String;");
+                    jmethodID GetExceptionCause = GetMethodID(ExceptionClass, "getCause", "()Ljava/lang/Throwable;");
+                    jstring exceptionString = CallObjectMethod(occurred, ExceptionToString, new JValue() { });
+                    Stack<string> exceptionStack = new Stack<string>();
+                    exceptionStack.Push(JStringToString(exceptionString));
 
-                    throw new Exception(JStringToString(jstr));
+                    jclass ThrowableClass = this.FindClass("java/lang/Throwable");
+                    jmethodID GetThrowableCause = GetMethodID(ThrowableClass, "getCause", "()Ljava/lang/Throwable;");
+                    jmethodID ThorwableToString = GetMethodID(ThrowableClass, "toString", "()Ljava/lang/String;");
+
+                    jthrowable cause = CallObjectMethod(occurred, GetExceptionCause, new JValue() { });
+                    while (cause != IntPtr.Zero) {
+                        jstring causeString = CallObjectMethod(cause, ThorwableToString, new JValue() { });
+                        exceptionStack.Push(JStringToString(causeString));
+                        cause = CallObjectMethod(cause, GetThrowableCause, new JValue() { });
+                    }
+                    Exception current = null;
+                    while (exceptionStack.Count > 0) {
+                        current = new Exception(exceptionStack.Pop(), current);
+                    }
+                    if(current == null) throw new Exception("Unknown exception raised by JNI");
+                    else throw current;
                 } else {
                     throw new Exception("Unknown exception raised by JNI");
                 }
