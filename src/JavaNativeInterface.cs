@@ -446,7 +446,7 @@ namespace org.daisy.jnet {
 
         #region Parameters parsing utilities
         /// <summary>
-        /// Parse parameters and signature to create the paremeter array.
+        /// Parse parameters and signature to create the parameter array.
         /// </summary>
         /// <param name="javaClass"></param>
         /// <param name="sig"></param>
@@ -473,14 +473,17 @@ namespace org.daisy.jnet {
                 startIndex = startIndex + (paramSig.Length - (paramSig.IndexOf("[", StringComparison.Ordinal) + 1));
 
                 if (param[i] is string) {
-                    if (!paramSig.Equals("Ljava/lang/String")) {
+                    // also adding Object test for generics
+                    if (!(paramSig.Equals("Ljava/lang/String") || paramSig.Equals("Ljava/lang/Object"))) {
                         throw new Exception("Signature (" + paramSig + ") does not match parameter value (" + param[i].GetType().ToString() + ").");
                     }
-                    retval[i] = new JValue() { l = env.NewString(param[i].ToString(), param[i].ToString().Length) };
+                    retval[i] = new JValue() { L = env.NewString(param[i].ToString(), param[i].ToString().Length) };
                 } else if (param[i] == null) {
                     retval[i] = new JValue(); // Just leave as default value
                 } else if (paramSig.StartsWith("[")) {
                     retval[i] = ProcessArrayType(javaClass, paramSig, param[i]);
+                } else if (param[i] is IntPtr) { // object pointer
+                    retval[i] = new JValue() { L = (IntPtr)param[i] };
                 } else {
                     retval[i] = new JValue();
                     FieldInfo paramField = retval[i].GetType().GetFields(BindingFlags.Public | BindingFlags.Instance).AsQueryable().FirstOrDefault(a => a.Name.ToUpper().Equals(paramSig));
@@ -493,6 +496,7 @@ namespace org.daisy.jnet {
             }
             return retval;
         }
+
 
         private JValue ProcessArrayType(IntPtr javaClass, string paramSig, object param) {
             IntPtr arrPointer;
@@ -538,7 +542,7 @@ namespace org.daisy.jnet {
             } else
                 env.PackPrimitiveArray<int>((int[])param, arrPointer);
 
-            return new JValue() { l = arrPointer };
+            return new JValue() { L = arrPointer };
         }
         #endregion
     }
