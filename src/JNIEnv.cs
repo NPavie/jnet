@@ -333,11 +333,11 @@ namespace org.daisy.jnet {
             return res;
         }
 
-        public byte CallByteMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
+        public sbyte CallByteMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
             if (callByteMethod == null) {
                 JavaVM.GetDelegateForFunctionPointer(functions.CallByteMethodA, ref callByteMethod);
             }
-            byte res = callByteMethod(Env, obj, methodID, args);
+            sbyte res = callByteMethod(Env, obj, methodID, args);
             CheckJavaExceptionAndThrow();
             return res;
         }
@@ -462,11 +462,11 @@ namespace org.daisy.jnet {
             return res;
         }
 
-        public byte CallStaticByteMethod(jclass clazz,  jmethodID methodID, params JValue[] args) {
+        public sbyte CallStaticByteMethod(jclass clazz,  jmethodID methodID, params JValue[] args) {
             if (callStaticByteMethod == null) {
                 JavaVM.GetDelegateForFunctionPointer(functions.CallStaticByteMethodA, ref callStaticByteMethod);
             }
-            byte res = callStaticByteMethod(Env, clazz, methodID, args);
+            sbyte res = callStaticByteMethod(Env, clazz, methodID, args);
             CheckJavaExceptionAndThrow();
             return res;
         }
@@ -660,11 +660,11 @@ namespace org.daisy.jnet {
             return res;
         }
 
-        public byte GetByteField(jobject obj, IntPtr fieldID) {
+        public sbyte GetByteField(jobject obj, IntPtr fieldID) {
             if (getByteField == null) {
                 JavaVM.GetDelegateForFunctionPointer(functions.GetByteField, ref getByteField);
             }
-            byte res = getByteField(Env, obj, fieldID);
+            sbyte res = getByteField(Env, obj, fieldID);
             CheckJavaExceptionAndThrow();
             return res;
         }
@@ -1767,7 +1767,7 @@ namespace org.daisy.jnet {
         internal delegate jboolean CallBooleanMethod(JNIEnvPtr env, jobject obj, jmethodID methodID, params JValue[] args);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
-        internal delegate jboolean CallByteMethod(JNIEnvPtr env, jobject obj, jmethodID methodID, params JValue[] args);
+        internal delegate jbyte CallByteMethod(JNIEnvPtr env, jobject obj, jmethodID methodID, params JValue[] args);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
         internal delegate ushort CallCharMethod(JNIEnvPtr env, jobject obj, jmethodID methodID, params JValue[] args);
@@ -1838,7 +1838,7 @@ namespace org.daisy.jnet {
                                                        jmethodID methodID, params JValue[] args);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
-        internal delegate jboolean CallStaticByteMethod(JNIEnvPtr env, jclass clazz, jmethodID methodID, params JValue[] args);
+        internal delegate jbyte CallStaticByteMethod(JNIEnvPtr env, jclass clazz, jmethodID methodID, params JValue[] args);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
         internal delegate ushort CallStaticCharMethod(JNIEnvPtr env, jclass clazz, jmethodID methodID, params JValue[] args);
@@ -1934,7 +1934,7 @@ namespace org.daisy.jnet {
         internal delegate void GetByteArrayRegion(JNIEnvPtr env, jbyteArray array, int start, int len, byte* buf);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
-        internal delegate jboolean GetByteField(JNIEnvPtr env, jobject obj, jfieldID fieldId);
+        internal delegate jbyte GetByteField(JNIEnvPtr env, jobject obj, jfieldID fieldId);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
         internal delegate ushort* GetCharArrayElements(JNIEnvPtr env, jcharArray array, byte* isCopy);
