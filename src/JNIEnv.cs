@@ -20,7 +20,7 @@ using jbyte = System.SByte; // Follwing jni_md.h definition for win32 (signed ch
 using jboolean = System.Byte;
 using jchar = System.UInt16;
 using jshort = System.Int16;
-using jfloat = System.Decimal;
+using jfloat = System.Single;
 using jdouble = System.Double;
 
 // Special jni types aliases that we represent as raw memory pointers
@@ -597,35 +597,100 @@ namespace org.daisy.jnet {
             return len;
         }
 
-        internal byte[] GetByteArray(IntPtr obj) {
+        internal jboolean[] GetBooleanArray(IntPtr obj) {
+            if (getBooleanArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.GetBooleanArrayElements, ref getBooleanArrayElements);
+            }
+
+            if (releaseBooleanArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseBooleanArrayElements, ref releaseBooleanArrayElements);
+            }
+            int len = this.GetArrayLength(obj);
+
+            jboolean isCopy;
+            jboolean* elems = getBooleanArrayElements(Env, obj, &isCopy);
+
+            jboolean[] result = new jboolean[len];
+            for (int i = 0; i < len; i++)
+                result[i] = (jboolean)elems[i];
+
+            if (isCopy == JNIBooleanValue.JNI_TRUE)
+                releaseBooleanArrayElements(Env, obj, elems, JNIPrimitiveArrayReleaseMode.JNI_ABORT);
+
+            CheckJavaExceptionAndThrow();
+            return result;
+        }
+
+        internal jbyte[] GetByteArray(IntPtr obj) {
             if (getByteArrayElements == null) {
                 JavaVM.GetDelegateForFunctionPointer(functions.GetByteArrayElements, ref getByteArrayElements);
             }
 
-            byte* res = getByteArrayElements(Env, obj, null);
+            if (releaseByteArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseByteArrayElements, ref releaseByteArrayElements);
+            }
             int len = this.GetArrayLength(obj);
-            byte[] bResult = new byte[len];
-            IntPtr byteSource = (IntPtr)res;
-            Marshal.Copy(byteSource, bResult, 0, len);
+
+            jboolean isCopy;
+            jbyte* elems = getByteArrayElements(Env, obj, &isCopy);
+
+            jbyte[] result = new jbyte[len];
+            for (int i = 0; i < len; i++)
+                result[i] = elems[i];
+
+            if (isCopy == JNIBooleanValue.JNI_TRUE)
+                releaseByteArrayElements(Env, obj, elems, JNIPrimitiveArrayReleaseMode.JNI_ABORT);
+
             CheckJavaExceptionAndThrow();
-            return bResult;
+            return result;
         }
 
-
-        internal IntPtr[] GetObjectArray(IntPtr obj) {
-            if (getByteArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetObjectArrayElement, ref getObjectArrayElement);
+        internal jchar[] GetCharArray(IntPtr obj) {
+            if (getCharArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.GetCharArrayElements, ref getCharArrayElements);
             }
 
+            if (releaseCharArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseCharArrayElements, ref releaseCharArrayElements);
+            }
             int len = this.GetArrayLength(obj);
-            IntPtr[] oResult = new IntPtr[len];
-            for (int i = 0; i < len; i++) {
-                IntPtr res = getObjectArrayElement(Env, obj, i);
-                oResult[i] = res;
-            }
+
+            jboolean isCopy;
+            jchar* elems = getCharArrayElements(Env, obj, &isCopy);
+
+            jchar[] result = new jchar[len];
+            for (int i = 0; i < len; i++)
+                result[i] = elems[i];
+
+            if (isCopy == JNIBooleanValue.JNI_TRUE)
+                releaseCharArrayElements(Env, obj, elems, JNIPrimitiveArrayReleaseMode.JNI_ABORT);
 
             CheckJavaExceptionAndThrow();
-            return oResult;
+            return result;
+        }
+
+        internal jshort[] GetShortArray(IntPtr obj) {
+            if (getShortArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.GetShortArrayElements, ref getShortArrayElements);
+            }
+
+            if (releaseShortArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseShortArrayElements, ref releaseShortArrayElements);
+            }
+            int len = this.GetArrayLength(obj);
+
+            jboolean isCopy;
+            jshort* elems = getShortArrayElements(Env, obj, &isCopy);
+
+            jshort[] result = new jshort[len];
+            for (int i = 0; i < len; i++)
+                result[i] = elems[i];
+
+            if (isCopy == JNIBooleanValue.JNI_TRUE)
+                releaseShortArrayElements(Env, obj, elems, JNIPrimitiveArrayReleaseMode.JNI_ABORT);
+
+            CheckJavaExceptionAndThrow();
+            return result;
         }
 
         public int[] GetIntArray(IntPtr obj) {
@@ -645,10 +710,98 @@ namespace org.daisy.jnet {
                 res[i] = (int)elems[i];
 
             if (isCopy == JNIBooleanValue.JNI_TRUE)
-                releaseIntArrayElements(Env, obj, elems, JNIReturnValue.JNI_ABORT);
+                releaseIntArrayElements(Env, obj, elems, JNIPrimitiveArrayReleaseMode.JNI_ABORT);
 
             CheckJavaExceptionAndThrow();
             return res;
+        }
+
+        internal jlong[] GetLongArray(IntPtr obj) {
+            if (getLongArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.GetLongArrayElements, ref getLongArrayElements);
+            }
+
+            if (releaseLongArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseLongArrayElements, ref releaseLongArrayElements);
+            }
+            int len = this.GetArrayLength(obj);
+
+            jboolean isCopy;
+            jlong* elems = getLongArrayElements(Env, obj, &isCopy);
+
+            jlong[] result = new jlong[len];
+            for (int i = 0; i < len; i++)
+                result[i] = elems[i];
+
+            if (isCopy == JNIBooleanValue.JNI_TRUE)
+                releaseLongArrayElements(Env, obj, elems, JNIPrimitiveArrayReleaseMode.JNI_ABORT);
+
+            CheckJavaExceptionAndThrow();
+            return result;
+        }
+
+        internal jfloat[] GetFloatArray(IntPtr obj) {
+            if (getFloatArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.GetFloatArrayElements, ref getFloatArrayElements);
+            }
+
+            if (releaseFloatArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseFloatArrayElements, ref releaseFloatArrayElements);
+            }
+            int len = this.GetArrayLength(obj);
+
+            jboolean isCopy;
+            jfloat* elems = getFloatArrayElements(Env, obj, &isCopy);
+
+            jfloat[] result = new jfloat[len];
+            for (int i = 0; i < len; i++)
+                result[i] = elems[i];
+
+            if (isCopy == JNIBooleanValue.JNI_TRUE)
+                releaseFloatArrayElements(Env, obj, elems, JNIPrimitiveArrayReleaseMode.JNI_ABORT);
+
+            CheckJavaExceptionAndThrow();
+            return result;
+        }
+
+        internal jdouble[] GetDoubleArray(IntPtr obj) {
+            if (getDoubleArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.GetDoubleArrayElements, ref getDoubleArrayElements);
+            }
+
+            if (releaseDoubleArrayElements == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseDoubleArrayElements, ref releaseDoubleArrayElements);
+            }
+            int len = this.GetArrayLength(obj);
+
+            jboolean isCopy;
+            jdouble* elems = getDoubleArrayElements(Env, obj, &isCopy);
+
+            jdouble[] result = new jdouble[len];
+            for (int i = 0; i < len; i++)
+                result[i] = elems[i];
+
+            if (isCopy == JNIBooleanValue.JNI_TRUE)
+                releaseDoubleArrayElements(Env, obj, elems, (jint)JNIPrimitiveArrayReleaseMode.JNI_ABORT);
+
+            CheckJavaExceptionAndThrow();
+            return result;
+        }
+
+        internal IntPtr[] GetObjectArray(IntPtr obj) {
+            if (getObjectArrayElement == null) {
+                JavaVM.GetDelegateForFunctionPointer(functions.GetObjectArrayElement, ref getObjectArrayElement);
+            }
+
+            int len = this.GetArrayLength(obj);
+            IntPtr[] result = new IntPtr[len];
+            for (int i = 0; i < len; i++) {
+                IntPtr res = getObjectArrayElement(Env, obj, i);
+                result[i] = res;
+            }
+
+            CheckJavaExceptionAndThrow();
+            return result;
         }
 
         public bool GetBooleanField(jobject obj, IntPtr fieldID) {
@@ -1000,7 +1153,7 @@ namespace org.daisy.jnet {
             CheckJavaExceptionAndThrow();
         }
 
-        internal byte[] JStringToByte(IntPtr JStr) {
+        internal sbyte[] JStringToByte(IntPtr JStr) {
             if (JStr != null) {
                 return GetByteArray(JStr);
             } else return null;
@@ -1928,7 +2081,7 @@ namespace org.daisy.jnet {
         internal delegate jboolean GetBooleanField(JNIEnvPtr env, jobject obj, jfieldID fieldId);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
-        internal delegate jboolean* GetByteArrayElements(JNIEnvPtr env, jbyteArray array, byte* isCopy);
+        internal delegate jbyte* GetByteArrayElements(JNIEnvPtr env, jbyteArray array, byte* isCopy);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
         internal delegate void GetByteArrayRegion(JNIEnvPtr env, jbyteArray array, int start, int len, byte* buf);
@@ -1965,7 +2118,7 @@ namespace org.daisy.jnet {
             [MarshalAs(UnmanagedType.LPStr)] string sig);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
-        internal delegate float* GetFloatArrayElements(JNIEnvPtr env, jfloatArray array, byte* isCopy);
+        internal delegate jfloat* GetFloatArrayElements(JNIEnvPtr env, jfloatArray array, byte* isCopy);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
         internal delegate void GetFloatArrayRegion(JNIEnvPtr env, jfloatArray array, int start, int len, float* buf);
@@ -2162,7 +2315,7 @@ namespace org.daisy.jnet {
         internal delegate void ReleaseDoubleArrayElements(JNIEnvPtr env, jdoubleArray array, double* elems, int mode);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
-        internal delegate void ReleaseFloatArrayElements(JNIEnvPtr env, jfloatArray array, float* elems, int mode);
+        internal delegate void ReleaseFloatArrayElements(JNIEnvPtr env, jfloatArray array, jfloat* elems, int mode);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
         internal delegate void ReleaseIntArrayElements(JNIEnvPtr env, jintArray array, int* elems, int mode);

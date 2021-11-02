@@ -106,7 +106,9 @@ namespace org.daisy.jnet {
                     }
                 }
             }
+#if DEBUG
             Console.WriteLine("Using " + JavaNativeInterface.__jvmDllPath);
+#endif
             JavaVM.loadAssembly(JavaNativeInterface.__jvmDllPath);
         }
 
@@ -195,7 +197,7 @@ namespace org.daisy.jnet {
         }
 
         #region Creating java class and objects
-                
+
         /// <summary>
         /// Retrieve a java class reference
         /// </summary>
@@ -227,7 +229,7 @@ namespace org.daisy.jnet {
         /// <returns>A java object pointer</returns>
         /// <exception cref="Exception">throws back any Java exception found during the method call</exception>
         public IntPtr NewObject(IntPtr javaClass, string signature = "()V", params object[] args) {
-            
+
             try {
 
                 IntPtr methodId = env.GetMethodID(javaClass, "<init>", signature);
@@ -236,6 +238,58 @@ namespace org.daisy.jnet {
                 usedObject.Add(javaObject);
                 return javaObject;
 
+            } catch (Exception e) {
+                throw e;
+            }
+        }
+
+        /// <summary>
+        /// Retrieve values from a java array pointer
+        /// </summary>
+        /// <typeparam name="T">expected type of values in the array</typeparam>
+        /// <param name="array">Pointer of the array within a class or and object</param>
+        /// <returns>the array of values of a default empty array if no type found</returns>
+        private T[] GetArray<T>(IntPtr array) {
+            try {
+                if (typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte)) {
+                    // Get the byte array values 
+                    return (T[])(object)env.GetByteArray(array);
+                } else if (typeof(T) == typeof(bool)) {
+                    // Get the boolean array values 
+                    return (T[])(object)env.GetBooleanArray(array);
+                } else if (typeof(T) == typeof(char)) {
+                    // Get the char Field 
+                    return (T[])(object)env.GetCharArray(array);
+                } else if (typeof(T) == typeof(short)) {
+                    // Get the short Field 
+                    return (T[])(object)env.GetShortArray(array);
+                } else if (typeof(T) == typeof(int)) {
+                    // Get the int array values               
+                    return (T[])(object)env.GetIntArray(array);
+                } else if (typeof(T) == typeof(long)) {
+                    // Get the long array values 
+                    return (T[])(object)env.GetLongArray(array);
+                } else if (typeof(T) == typeof(float)) {
+                    // Get the float array values 
+                    return (T[])(object)env.GetFloatArray(array);
+                } else if (typeof(T) == typeof(double)) {
+                    // Get the double array values 
+                    return (T[])(object)env.GetDoubleArray(array);
+                } else if (typeof(T) == typeof(string)) {
+                    // Get the string array values
+                    IntPtr[] objArray = env.GetObjectArray(array);
+                    string[] res = new string[objArray.Length];
+
+                    for (int i = 0; i < objArray.Length; i++) {
+                        res[i] = env.JStringToString(objArray[i]);
+                    }
+                    return (T[])(object)res;
+                } else if (typeof(T) == typeof(IntPtr)) {
+                    // Get the object array values
+                    return (T[])(object)env.GetObjectArray(array);
+                } else {
+                    return default;
+                }
             } catch (Exception e) {
                 throw e;
             }
@@ -255,59 +309,9 @@ namespace org.daisy.jnet {
                         env.GetStaticByteField(javaClass, FieldID) :
                         env.GetByteField(javaObject, FieldID);
                     return (T)(object)res;
-                } else if (typeof(T) == typeof(bool)) {
-                    // Get the boolean Field 
-                    bool res = isStatic ?
-                        env.GetStaticBooleanField(javaClass, FieldID) :
-                        env.GetBooleanField(javaObject, FieldID);
-                    return (T)(object)res;
-                }
-                if (typeof(T) == typeof(char)) {
-                    // Get the char Field 
-                    char res = isStatic ?
-                        env.GetStaticCharField(javaClass, FieldID) :
-                        env.GetCharField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(short)) {
-                    // Get the short Field 
-                    short res = isStatic ?
-                        env.GetStaticShortField(javaClass, FieldID) :
-                        env.GetShortField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(int)) {
-                    // Get the int Field               
-                    int res = isStatic ?
-                        env.GetStaticIntField(javaClass, FieldID) :
-                        env.GetIntField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(long)) {
-                    // Get the long Field 
-                    long res = isStatic ?
-                        env.GetStaticLongField(javaClass, FieldID) :
-                        env.GetLongField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(float)) {
-                    // Get the float Field 
-                    float res = isStatic ?
-                        env.GetStaticFloatField(javaClass, FieldID) :
-                        env.GetFloatField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(double)) {
-                    // Get the double Field 
-                    double res = isStatic ?
-                        env.GetStaticDoubleField(javaClass, FieldID) :
-                        env.GetDoubleField(javaObject, FieldID);
-                    return (T)(object)res; // need to fix this
-                } else if (typeof(T) == typeof(string)) {
-                    // Get the string Field 
-                    IntPtr jstr = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-
-                    string res = env.JStringToString(jstr);
-                    env.DeleteLocalRef(jstr);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(byte[])) {
+                } else if (typeof(T) == typeof(sbyte[])
+                       || typeof(T) == typeof(byte[])) { // For now, use sbyte for both
+                    // Possibly add a warning in debug if byte is requested
                     // Get the byte Field
                     IntPtr jobj = isStatic ?
                         env.GetStaticObjectField(javaClass, FieldID) :
@@ -315,26 +319,65 @@ namespace org.daisy.jnet {
                     if (jobj == IntPtr.Zero) {
                         return default(T);
                     }
-                    byte[] res = env.JStringToByte(jobj);
+                    sbyte[] res = GetArray<sbyte>(jobj);
                     env.DeleteLocalRef(jobj);
                     return (T)(object)res;
-                } else if (typeof(T) == typeof(string[])) {
-                    // Get the string array Field
+                } else if (typeof(T) == typeof(bool)) {
+                    // Get the boolean Field 
+                    bool res = isStatic ?
+                        env.GetStaticBooleanField(javaClass, FieldID) :
+                        env.GetBooleanField(javaObject, FieldID);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(bool[])) {
+                    // Get the int array Field
                     IntPtr jobj = isStatic ?
                         env.GetStaticObjectField(javaClass, FieldID) :
                         env.GetObjectField(javaObject, FieldID);
                     if (jobj == IntPtr.Zero) {
                         return default(T);
                     }
-
-                    IntPtr[] objArray = env.GetObjectArray(jobj);
-                    string[] res = new string[objArray.Length];
-
-                    for (int i = 0; i < objArray.Length; i++) {
-                        res[i] = env.JStringToString(objArray[i]);
-                    }
-
+                    bool[] res = GetArray<bool>(jobj);
                     env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(char)) {
+                    // Get the char Field 
+                    char res = isStatic ?
+                        env.GetStaticCharField(javaClass, FieldID) :
+                        env.GetCharField(javaObject, FieldID);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(char[])) {
+                    // Get the int array Field
+                    IntPtr jobj = isStatic ?
+                        env.GetStaticObjectField(javaClass, FieldID) :
+                        env.GetObjectField(javaObject, FieldID);
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    char[] res = GetArray<char>(jobj);
+                    env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(short)) {
+                    // Get the short Field 
+                    short res = isStatic ?
+                        env.GetStaticShortField(javaClass, FieldID) :
+                        env.GetShortField(javaObject, FieldID);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(short[])) {
+                    // Get the int array Field
+                    IntPtr jobj = isStatic ?
+                        env.GetStaticObjectField(javaClass, FieldID) :
+                        env.GetObjectField(javaObject, FieldID);
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    short[] res = GetArray<short>(jobj);
+                    env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(int)) {
+                    // Get the int Field               
+                    int res = isStatic ?
+                        env.GetStaticIntField(javaClass, FieldID) :
+                        env.GetIntField(javaObject, FieldID);
                     return (T)(object)res;
                 } else if (typeof(T) == typeof(int[])) {
                     // Get the int array Field
@@ -344,7 +387,78 @@ namespace org.daisy.jnet {
                     if (jobj == IntPtr.Zero) {
                         return default(T);
                     }
-                    int[] res = env.GetIntArray(jobj);
+                    int[] res = GetArray<int>(jobj);
+                    env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(long)) {
+                    // Get the long Field 
+                    long res = isStatic ?
+                        env.GetStaticLongField(javaClass, FieldID) :
+                        env.GetLongField(javaObject, FieldID);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(long[])) {
+                    // Get the int array Field
+                    IntPtr jobj = isStatic ?
+                        env.GetStaticObjectField(javaClass, FieldID) :
+                        env.GetObjectField(javaObject, FieldID);
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    long[] res = GetArray<long>(jobj);
+                    env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(float)) {
+                    // Get the float Field 
+                    float res = isStatic ?
+                        env.GetStaticFloatField(javaClass, FieldID) :
+                        env.GetFloatField(javaObject, FieldID);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(float[])) {
+                    // Get the float array values
+                    IntPtr jobj = isStatic ?
+                        env.GetStaticObjectField(javaClass, FieldID) :
+                        env.GetObjectField(javaObject, FieldID);
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    float[] res = GetArray<float>(jobj);
+                    env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(double)) {
+                    // Get the double Field 
+                    double res = isStatic ?
+                        env.GetStaticDoubleField(javaClass, FieldID) :
+                        env.GetDoubleField(javaObject, FieldID);
+                    return (T)(object)res; // need to fix this
+                } else if (typeof(T) == typeof(double[])) {
+                    // Get the double array field values
+                    IntPtr jobj = isStatic ?
+                        env.GetStaticObjectField(javaClass, FieldID) :
+                        env.GetObjectField(javaObject, FieldID);
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    double[] res = GetArray<double>(jobj);
+                    env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(string)) {
+                    // Get the string Field 
+                    IntPtr jstr = isStatic ?
+                        env.GetStaticObjectField(javaClass, FieldID) :
+                        env.GetObjectField(javaObject, FieldID);
+
+                    string res = env.JStringToString(jstr);
+                    env.DeleteLocalRef(jstr);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(string[])) {
+                    // Get the string array Field
+                    IntPtr jobj = isStatic ?
+                        env.GetStaticObjectField(javaClass, FieldID) :
+                        env.GetObjectField(javaObject, FieldID);
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    string[] res = GetArray<string>(jobj); ;
                     env.DeleteLocalRef(jobj);
                     return (T)(object)res;
                 } else if (typeof(T) == typeof(IntPtr)) {
@@ -352,6 +466,17 @@ namespace org.daisy.jnet {
                     IntPtr res = isStatic ?
                         env.GetStaticObjectField(javaClass, FieldID) :
                         env.GetObjectField(javaObject, FieldID);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(IntPtr[])) {
+                    // Get the int array Field
+                    IntPtr jobj = isStatic ?
+                        env.GetStaticObjectField(javaClass, FieldID) :
+                        env.GetObjectField(javaObject, FieldID);
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    IntPtr[] res = GetArray<IntPtr>(jobj);
+                    env.DeleteLocalRef(jobj);
                     return (T)(object)res;
                 }
                 return default(T);
@@ -393,7 +518,7 @@ namespace org.daisy.jnet {
         /// <summary>
         /// Call a method returning a T value from an object and/or a java class. <br/>
         /// If a correct object pointer is provided (that is not null nor IntPtr.Zero), it tries to call the method from the object.
-        /// If null or wero pointer is provided for object, it will try to launch a corresponding static method.<br/>
+        /// If null or zero pointer is provided for object, it will try to launch a corresponding static method.<br/>
         /// <b>If the method has no return value (returns void), you must use CallVoidMethod.</b>
         /// </summary>
         /// <typeparam name="T">
@@ -423,18 +548,50 @@ namespace org.daisy.jnet {
                         env.CallStaticByteMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
                         env.CallByteMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
                     return (T)(object)res;
+                } else if (typeof(T) == typeof(byte[]) || typeof(T) == typeof(sbyte[])) {
+                    // Call the byte method
+                    IntPtr jobj = isStatic ?
+                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    sbyte[] res = GetArray<sbyte>(jobj);
+                    env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
                 } else if (typeof(T) == typeof(bool)) {
                     // Call the boolean method 
                     bool res = isStatic ?
                         env.CallStaticBooleanMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
                         env.CallBooleanMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
                     return (T)(object)res;
-                }
-                if (typeof(T) == typeof(char)) {
+                } else if (typeof(T) == typeof(bool[])) {
+                    // Call the byte method
+                    IntPtr jobj = isStatic ?
+                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    bool[] res = GetArray<bool>(jobj);
+                    env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(char)) {
                     // Call the char method 
                     char res = isStatic ?
                         env.CallStaticCharMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
                         env.CallCharMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(char[])) {
+                    // Call the byte method
+                    IntPtr jobj = isStatic ?
+                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    char[] res = GetArray<char>(jobj);
+                    env.DeleteLocalRef(jobj);
                     return (T)(object)res;
                 } else if (typeof(T) == typeof(short)) {
                     // Call the short method 
@@ -442,11 +599,33 @@ namespace org.daisy.jnet {
                         env.CallStaticShortMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
                         env.CallShortMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
                     return (T)(object)res;
+                } else if (typeof(T) == typeof(short[])) {
+                    // Call the byte method
+                    IntPtr jobj = isStatic ?
+                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    short[] res = GetArray<short>(jobj);
+                    env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
                 } else if (typeof(T) == typeof(int)) {
                     // Call the int method               
                     int res = isStatic ?
                         env.CallStaticIntMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
                         env.CallIntMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(int[])) {
+                    // Call the byte method
+                    IntPtr jobj = isStatic ?
+                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    int[] res = GetArray<int>(jobj);
+                    env.DeleteLocalRef(jobj);
                     return (T)(object)res;
                 } else if (typeof(T) == typeof(long)) {
                     // Call the long method 
@@ -454,11 +633,33 @@ namespace org.daisy.jnet {
                         env.CallStaticLongMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
                         env.CallLongMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
                     return (T)(object)res;
+                } else if (typeof(T) == typeof(long[])) {
+                    // Call the byte method
+                    IntPtr jobj = isStatic ?
+                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    long[] res = GetArray<long>(jobj);
+                    env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
                 } else if (typeof(T) == typeof(float)) {
                     // Call the float method 
                     float res = isStatic ?
                         env.CallStaticFloatMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
                         env.CallFloatMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(float[])) {
+                    // Call the byte method
+                    IntPtr jobj = isStatic ?
+                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    float[] res = GetArray<float>(jobj);
+                    env.DeleteLocalRef(jobj);
                     return (T)(object)res;
                 } else if (typeof(T) == typeof(double)) {
                     // Call the double method 
@@ -466,6 +667,17 @@ namespace org.daisy.jnet {
                         env.CallStaticDoubleMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
                         env.CallDoubleMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
                     return (T)(object)res; // need to fix this
+                } else if (typeof(T) == typeof(double[])) {
+                    // Call the byte method
+                    IntPtr jobj = isStatic ?
+                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    if (jobj == IntPtr.Zero) {
+                        return default(T);
+                    }
+                    double[] res = GetArray<double>(jobj);
+                    env.DeleteLocalRef(jobj);
+                    return (T)(object)res;
                 } else if (typeof(T) == typeof(string)) {
                     // Call the string method 
                     IntPtr jstr = isStatic ?
@@ -474,17 +686,6 @@ namespace org.daisy.jnet {
 
                     string res = env.JStringToString(jstr);
                     env.DeleteLocalRef(jstr);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(byte[])) {
-                    // Call the byte method
-                    IntPtr jobj = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    byte[] res = env.JStringToByte(jobj);
-                    env.DeleteLocalRef(jobj);
                     return (T)(object)res;
                 } else if (typeof(T) == typeof(string[])) {
                     // Call the string array method
@@ -504,22 +705,22 @@ namespace org.daisy.jnet {
 
                     env.DeleteLocalRef(jobj);
                     return (T)(object)res;
-                } else if (typeof(T) == typeof(int[])) {
-                    // Call the int array method
+                } else if (typeof(T) == typeof(IntPtr)) {
+                    // Call the object method and deal with whatever comes back in the call code 
+                    IntPtr res = isStatic ?
+                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    return (T)(object)res;
+                } else if (typeof(T) == typeof(IntPtr[])) {
+                    // Call the byte method
                     IntPtr jobj = isStatic ?
                         env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
                         env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
                     if (jobj == IntPtr.Zero) {
                         return default(T);
                     }
-                    int[] res = env.GetIntArray(jobj);
+                    IntPtr[] res = GetArray<IntPtr>(jobj);
                     env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(IntPtr)) {
-                    // Call the object method and deal with whatever comes back in the call code 
-                    IntPtr res = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
                     return (T)(object)res;
                 }
                 return default(T);

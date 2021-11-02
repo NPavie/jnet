@@ -49,10 +49,24 @@ namespace org.daisy.jnet {
     public struct JNIBooleanValue
     {
         // JBoolean Constant
-        public const byte JNI_TRUE = 1;   // True (wouldn't it be fun to set JNI_TRUE = 0 that would give someone hrs of fun of debugging)
         public const byte JNI_FALSE = 0;  // False
+        public const byte JNI_TRUE = 1;   // True (wouldn't it be fun to set JNI_TRUE = 0 that would give someone hrs of fun of debugging)
+        
     }
 
+
+    /// <summary>
+    /// Release mode for ReleaseScalarArrayElements
+    /// </summary>
+    public struct JNIPrimitiveArrayReleaseMode {
+        public const int JNI_DEFAULT = 0;
+        public const int JNI_COMMIT = 1;
+        public const int JNI_ABORT = 2;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
     public struct JNIReturnValue
     {
         // possible return values for JNI functions
@@ -66,9 +80,29 @@ namespace org.daisy.jnet {
 
         public const int JNI_ENOJava = 101; // local error if the DLL can not be found
 
-        // used in ReleaseScalarArrayElement
-        public const int JNI_COMMIT = 1;
-        public const int JNI_ABORT = 2;
+
+        public static string Message(int code) {
+            switch (code) {
+                case JNI_OK:
+                    return "Success";
+                case JNI_EDETACHED:
+                    return "Thread detached from the VM";
+                case JNI_EVERSION:
+                    return "JNI version error";
+                case JNI_ENOMEM:
+                    return "Not enough memory";
+                case JNI_EEXIST:
+                    return "VM already created";
+                case JNI_EINVAL:
+                    return "Invalid arguments";
+                case JNI_ENOJava:
+                    return "Dll related local error";
+                case JNIReturnValue.JNI_ERR:
+                    return "Unknown error";
+                default:
+                    return "Unknown error code " + code;
+            }
+        }
 
     }
 
