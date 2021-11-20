@@ -155,7 +155,7 @@ namespace org.daisy.jnet {
             return res;
         }
 
-        internal jclass GetObjectClass(jobject obj) {
+        public jclass GetObjectClass(jobject obj) {
             if (getObjectClass == null) {
                 JavaVM.GetDelegateForFunctionPointer(functions.GetObjectClass, ref getObjectClass);
             }
