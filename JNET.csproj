@@ -80,6 +80,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="src\JavaIterable.cs" />
     <Compile Include="src\JavaVM.cs" />
     <Compile Include="src\JavaNativeInterface.cs" />
     <Compile Include="src\JNIDefinitions.cs" />
