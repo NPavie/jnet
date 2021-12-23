@@ -391,7 +391,7 @@ namespace org.daisy.jnet {
         }
 
         public IntPtr CallStaticObjectMethod(jclass clazz, jmethodID methodID, params JValue[] args) {
-            if (callObjectMethod == null) {
+            if (callStaticObjectMethod == null) {
                 JavaVM.GetDelegateForFunctionPointer(functions.CallStaticObjectMethodA, ref callStaticObjectMethod);
             }
             IntPtr res = callStaticObjectMethod(Env, clazz, methodID, args);
