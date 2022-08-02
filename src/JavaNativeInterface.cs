@@ -6,12 +6,9 @@
 // http://download.oracle.com/javase/6/docs/technotes/guides/jni/spec/functions.html
 ////////////////////////////////////////////////////////////////////////////////////////////////
 using System;
-using System.IO;
 using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using System.Reflection;
-
-using Microsoft.Win32;
 using System.Runtime.InteropServices;
 
 namespace org.daisy.jnet {
@@ -24,7 +21,7 @@ namespace org.daisy.jnet {
         private static string __javaVersion = "";
 
 
-        // Possible registry keys that indicate the current installed JRE
+        // Possible registry keys that indicate the current installed JRE on windows
         private static readonly string[] JAVA_REGISTRY_KEYS = {
             @"HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\Java Runtime Environment",
             @"HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\JRE",
@@ -48,50 +45,67 @@ namespace org.daisy.jnet {
             get => env;
         }
 
-        public bool AttachToCurrentJVMThread { get; set; }
+
         /// <summary>
         /// Load the JNI. <br/>
-        /// If no forcedJVMDllPath is given, search the jvm dll in the given order :<br/>
+        /// If no custom jre path is given, search the jvm library in the given order :<br/>
         /// - Near the current assembly<br/>
         /// - Under the JAVA_HOME folder<br/>
-        /// - In the user registry
+        /// - for windows OS, also search in the user registry
         /// </summary>
-        /// <param name="forcedJVMDllPath">Path of the jvm.dll file</param>
-        public JavaNativeInterface(string forcedJVMDllPath = "") {
-            if (forcedJVMDllPath.Length > 0) {
-                if (!File.Exists(forcedJVMDllPath)) {
-                    throw new Exception("the jvm dll requested does not exists : " + forcedJVMDllPath);
+        /// <param name="customJREPath">Path of the jvm.dll file</param>
+        public JavaNativeInterface(List<string> options, string customJREPath = "", bool AddToExistingJVM = false, JNIVersion targetVersion = JNIVersion.JNI_VERSION_10) {
+            // os specific jvm lib names, default for windows 
+            string libraryName = "jvm.dll";
+            string libFolder = "bin";
+            
+
+            if (customJREPath.Length > 0) {
+                if (!Directory.Exists(customJREPath)) {
+                    Console.Error.WriteLine($"The jre path provided was not found : {customJREPath}");
+                    Console.Error.WriteLine("Falling back to standard JRE search, starting near the current assembly.");
                 }
-                JavaNativeInterface.__jvmDllPath = forcedJVMDllPath;
-            } else if (JavaNativeInterface.__jvmDllPath.Length == 0) {
+                string[] searchResult = Directory.GetFiles(customJREPath, libraryName, SearchOption.AllDirectories);
+
+                if (searchResult.Length > 0)
+                {
+                    JavaNativeInterface.__jvmDllPath = searchResult[0];
+                } else
+                {
+                    Console.Error.WriteLine($"the jre path provided ({customJREPath}) does not contains a {libraryName} file");
+                    Console.Error.WriteLine("Falling back to standard JRE search, starting near the current assembly.");
+                }
+            } 
+            
+            if (JavaNativeInterface.__jvmDllPath.Length == 0) {
                 // Search for a java runtime near the current assembly
-                string codeBase = Assembly.GetExecutingAssembly().CodeBase;
-                UriBuilder uri = new UriBuilder(codeBase);
-                string assemblyDir = Path.GetDirectoryName(Uri.UnescapeDataString(uri.Path)) + Path.DirectorySeparatorChar;
-                string[] searchResult = Directory.GetFiles(assemblyDir, "jvm.dll", SearchOption.AllDirectories);
+                string codeBase = Assembly.GetExecutingAssembly().Location;
+                string assemblyDir = Path.GetDirectoryName(codeBase) + Path.DirectorySeparatorChar;
+                
+                string[] searchResult = Directory.GetFiles(assemblyDir, libraryName, SearchOption.AllDirectories);
+
                 if (searchResult.Length > 0) {
                     JavaNativeInterface.__jvmDllPath = searchResult[0];
                 } else {
+                    // Search a JAVA_HOME
                     string envJavaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
-                    if (envJavaHome.Length > 0) {
-                        // Retrieve the server jvm.dll
-                        //searchResult = Directory.GetFiles(envJavaHome, "bin\\server\\jvm.dll", SearchOption.AllDirectories);
-                        searchResult = new string[] { Path.Combine(envJavaHome, "bin", "server", "jvm.dll") };
+                    if (envJavaHome != null && envJavaHome.Length > 0) {
+                        searchResult = new string[] { Path.Combine(envJavaHome, libFolder, "server", libraryName) };
                         if (File.Exists(searchResult[0])) {
                             JavaNativeInterface.__jvmDllPath = searchResult[0];
                         }
                     } else {
-                        // Requires Microsoft.Win32 to access registry
+                        // try to access registry
                         foreach (string key in JavaNativeInterface.JAVA_REGISTRY_KEYS) {
-                            string javaVersion = (string)Registry.GetValue(key, "CurrentVersion", null);
-                            if (javaVersion == null) continue;
+                            string javaVersion = (string)Microsoft.Win32.Registry.GetValue(key, "CurrentVersion", null);
+                            if (javaVersion == "") continue;
                             else {
                                 JavaNativeInterface.__javaVersion = javaVersion;
                                 string javaKey = Path.Combine(key, javaVersion);
-                                string javaHomeKey = (string)Registry.GetValue(javaKey, "JavaHome", null);
-                                if (javaHomeKey == null) continue;
+                                string javaHomeKey = (string)Microsoft.Win32.Registry.GetValue(javaKey, "JavaHome", null);
+                                if (javaHomeKey == "") continue;
                                 else {
-                                    searchResult = Directory.GetFiles(javaHomeKey, "jvm.dll", SearchOption.AllDirectories);
+                                    searchResult = Directory.GetFiles(javaHomeKey, libraryName, SearchOption.AllDirectories);
                                     if (searchResult.Length > 0) {
                                         JavaNativeInterface.__jvmDllPath = searchResult[0];
                                         break;
@@ -100,16 +114,22 @@ namespace org.daisy.jnet {
                                 }
                             }
                         }
-                        if (JavaNativeInterface.__jvmDllPath.Length == 0) { // no runtime found in registry keys 
-                            throw new Exception("No Java runtime available to launch a JVM, please install java or contact your IT administrator.");
-                        }
                     }
                 }
             }
+            if (JavaNativeInterface.__jvmDllPath.Length == 0)
+            {
+                throw new Exception(
+                    "No Java runtime was found near the program or in your system.\r\n" +
+                    "Please contact your IT Administrator, or install yourself a JDK or a JRE and set the JAVA_HOME environment variable."
+                );
+            }
+
 #if DEBUG
             Console.WriteLine("Using " + JavaNativeInterface.__jvmDllPath);
 #endif
             JavaVM.loadAssembly(JavaNativeInterface.__jvmDllPath);
+            LoadVM(options, AddToExistingJVM, targetVersion);
         }
 
         /// <summary>
@@ -145,16 +165,20 @@ namespace org.daisy.jnet {
                 }
             }
 
-            if (!AttachToCurrentJVMThread) {
+            if (!AddToExistingJVM) {
                 IntPtr environment;
                 IntPtr javaVirtualMachine;
                 int result = JavaVM.JNI_CreateJavaVM(out javaVirtualMachine, out environment, &args);
-                if (result != JNIReturnValue.JNI_OK) {
+                if(result == JNIReturnValue.JNI_EEXIST)
+                {
+                    AttachToCurrentJVM(args);
+                } else if (result != JNIReturnValue.JNI_OK) {
                     throw new Exception("Cannot create JVM " + result.ToString());
+                } else
+                {
+                    jvm = new JavaVM(javaVirtualMachine);
+                    env = new JNIEnv(environment);
                 }
-
-                jvm = new JavaVM(javaVirtualMachine);
-                env = new JNIEnv(environment);
             } else AttachToCurrentJVM(args);
         }
 
@@ -162,28 +186,28 @@ namespace org.daisy.jnet {
             // This is only required if you want to reuse the same instance of the JVM
             // This is especially useful if you are using JNI in a webservice. see page 89 of the
             // Java Native Interface: Programmer's Guide and Specification by Sheng Liang
-            if (AttachToCurrentJVMThread) {
-                int nVMs;
+            
+            int nVMs;
 
-                IntPtr javaVirtualMachine;
-                int res = JavaVM.JNI_GetCreatedJavaVMs(out javaVirtualMachine, 1, out nVMs);
+            IntPtr javaVirtualMachine;
+            int res = JavaVM.JNI_GetCreatedJavaVMs(out javaVirtualMachine, 1, out nVMs);
+            if (res != JNIReturnValue.JNI_OK) {
+                throw new Exception("JNI_GetCreatedJavaVMs failed (" + res.ToString() + ")");
+            }
+            if (nVMs > 0) {
+                jvm = new JavaVM(javaVirtualMachine);
+                res = jvm.AttachCurrentThread(out env, args);
                 if (res != JNIReturnValue.JNI_OK) {
-                    throw new Exception("JNI_GetCreatedJavaVMs failed (" + res.ToString() + ")");
-                }
-                if (nVMs > 0) {
-                    jvm = new JavaVM(javaVirtualMachine);
-                    res = jvm.AttachCurrentThread(out env, args);
-                    if (res != JNIReturnValue.JNI_OK) {
-                        throw new Exception("AttachCurrentThread failed (" + res.ToString() + ")");
-                    }
+                    throw new Exception("AttachCurrentThread failed (" + res.ToString() + ")");
                 }
             }
+            
         }
 
 
         public string JavaVersion() {
-            int majorVersion = env.GetMajorVersion();
-            int minorVersion = env.GetMinorVersion();
+            int? majorVersion = env?.GetMajorVersion();
+            int? minorVersion = env?.GetMinorVersion();
             return majorVersion.ToString() + "." + minorVersion.ToString();
         }
 
@@ -202,20 +226,33 @@ namespace org.daisy.jnet {
         /// Retrieve a java class reference
         /// </summary>
         /// <param name="ClassName">class path in packages using / as separator, like "org/apache/whateverClassYouNeed" </param>
-        /// <returns></returns>
+        /// <returns>The class reference pointer</returns>
         public IntPtr GetJavaClass(string ClassName) {
-            IntPtr javaClass;
-            if (!usedClasses.ContainsKey(ClassName)) {
-                try {
-                    javaClass = env.FindClass(ClassName);
-                    usedClasses.Add(ClassName, javaClass);
-                } catch (Exception e) {
-                    throw e;
+            lock (this)
+            {
+                IntPtr? javaClass;
+                if (!usedClasses.ContainsKey(ClassName))
+                {
+                    try
+                    {
+                        javaClass = env?.FindClass(ClassName);
+                        if (javaClass == null)
+                        {
+                            throw new Exception(string.Format("{0} was not found", ClassName));
+                        }
+                        else usedClasses.Add(ClassName, javaClass.Value);
+                    }
+                    catch (Exception)
+                    {
+                        throw;
+                    }
                 }
-            } else {
-                javaClass = usedClasses[ClassName];
+                else
+                {
+                    javaClass = usedClasses[ClassName];
+                }
+                return javaClass.Value;
             }
-            return javaClass;
         }
 
         /// <summary>
@@ -229,18 +266,30 @@ namespace org.daisy.jnet {
         /// <returns>A java object pointer</returns>
         /// <exception cref="Exception">throws back any Java exception found during the method call</exception>
         public IntPtr NewObject(IntPtr javaClass, string signature = "()V", params object[] args) {
+            lock (this)
+            {
+                try {
+                
+                    IntPtr? methodId = env?.GetMethodID(javaClass, "<init>", signature);
+                    if (methodId == null)
+                    {
+                        throw new Exception(string.Format("The constructor with signature {0} was not found on the class referenced by pointer {1}", signature, javaClass.ToString()));
+                    }
+                    IntPtr? javaObject = env?.NewObject(javaClass, methodId.Value, ParseParameters(javaClass, signature, args));
+                    if (javaObject == null)
+                    {
+                        throw new Exception(string.Format("An object instance could not be created by the constructor with signature {0} of the class referenced by pointer {1}", signature, javaClass.ToString()));
+                    }
+                    // Store for disposal
+                    usedObject.Add(javaObject.Value);
+                    return javaObject.Value;
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
 
-            try {
-
-                IntPtr methodId = env.GetMethodID(javaClass, "<init>", signature);
-                IntPtr javaObject = env.NewObject(javaClass, methodId, ParseParameters(javaClass, signature, args));
-                // Store for disposal
-                usedObject.Add(javaObject);
-                return javaObject;
-
-            } catch (Exception e) {
-                throw e;
-            }
+            } 
         }
 
         /// <summary>
@@ -250,238 +299,345 @@ namespace org.daisy.jnet {
         /// <param name="array">Pointer of the array within a class or and object</param>
         /// <returns>the array of values of a default empty array if no type found</returns>
         private T[] GetArray<T>(IntPtr array) {
-            try {
-                if (typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte)) {
-                    // Get the byte array values 
-                    return (T[])(object)env.GetByteArray(array);
-                } else if (typeof(T) == typeof(bool)) {
-                    // Get the boolean array values 
-                    return (T[])(object)env.GetBooleanArray(array);
-                } else if (typeof(T) == typeof(char)) {
-                    // Get the char Field 
-                    return (T[])(object)env.GetCharArray(array);
-                } else if (typeof(T) == typeof(short)) {
-                    // Get the short Field 
-                    return (T[])(object)env.GetShortArray(array);
-                } else if (typeof(T) == typeof(int)) {
-                    // Get the int array values               
-                    return (T[])(object)env.GetIntArray(array);
-                } else if (typeof(T) == typeof(long)) {
-                    // Get the long array values 
-                    return (T[])(object)env.GetLongArray(array);
-                } else if (typeof(T) == typeof(float)) {
-                    // Get the float array values 
-                    return (T[])(object)env.GetFloatArray(array);
-                } else if (typeof(T) == typeof(double)) {
-                    // Get the double array values 
-                    return (T[])(object)env.GetDoubleArray(array);
-                } else if (typeof(T) == typeof(string)) {
-                    // Get the string array values
-                    IntPtr[] objArray = env.GetObjectArray(array);
-                    string[] res = new string[objArray.Length];
-
-                    for (int i = 0; i < objArray.Length; i++) {
-                        res[i] = env.JStringToString(objArray[i]);
+            lock (this)
+            {
+                try
+                {
+                    if (env == null)
+                    {
+                        throw new Exception("JNI was not initialised before calling GetArray");
                     }
-                    return (T[])(object)res;
-                } else if (typeof(T) == typeof(IntPtr)) {
-                    // Get the object array values
-                    return (T[])(object)env.GetObjectArray(array);
-                } else {
-                    return default;
+
+                    if (typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte))
+                    {
+                        // Get the byte array values 
+                        return (T[])(object)env.GetByteArray(array);
+                    }
+                    else if (typeof(T) == typeof(bool))
+                    {
+                        // Get the boolean array values 
+                        return (T[])(object)env.GetBooleanArray(array);
+                    }
+                    else if (typeof(T) == typeof(char))
+                    {
+                        // Get the char Field 
+                        return (T[])(object)env.GetCharArray(array);
+                    }
+                    else if (typeof(T) == typeof(short))
+                    {
+                        // Get the short Field 
+                        return (T[])(object)env.GetShortArray(array);
+                    }
+                    else if (typeof(T) == typeof(int))
+                    {
+                        // Get the int array values               
+                        return (T[])(object)env.GetIntArray(array);
+                    }
+                    else if (typeof(T) == typeof(long))
+                    {
+                        // Get the long array values 
+                        return (T[])(object)env.GetLongArray(array);
+                    }
+                    else if (typeof(T) == typeof(float))
+                    {
+                        // Get the float array values 
+                        return (T[])(object)env.GetFloatArray(array);
+                    }
+                    else if (typeof(T) == typeof(double))
+                    {
+                        // Get the double array values 
+                        return (T[])(object)env.GetDoubleArray(array);
+                    }
+                    else if (typeof(T) == typeof(string))
+                    {
+                        // Get the string array values
+                        IntPtr[] objArray = env.GetObjectArray(array);
+                        string[] res = new string[objArray.Length];
+
+                        for (int i = 0; i < objArray.Length; i++)
+                        {
+                            res[i] = env.JStringToString(objArray[i]);
+                        }
+                        return (T[])(object)res;
+                    }
+                    else if (typeof(T) == typeof(IntPtr))
+                    {
+                        // Get the object array values
+                        return (T[])(object)env.GetObjectArray(array);
+                    }
+                    else
+                    {
+                        return default;
+                    }
+
+
                 }
-            } catch (Exception e) {
-                throw e;
+                catch (Exception)
+                {
+                    throw;
+                }
             }
         }
 
-        public T GetField<T>(IntPtr javaClass, IntPtr javaObject, string FieldName, string sig) {
-            try {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <typeparam name="T">C# Type of the field to return</typeparam>
+        /// <param name="javaClass">The class pointer</param>
+        /// <param name="javaObjectPointer">An object pointer, can be null or IntPtr.Zero for static fields</param>
+        /// <param name="FieldName">Name of the field in the class</param>
+        /// <param name="sig">Java signature of the field</param>
+        /// <returns></returns>
+        public T GetField<T>(IntPtr javaClass, IntPtr? javaObjectPointer, string FieldName, string sig) {
+            lock (this)
+            {
+                try
+                {
+                    if (env == null)
+                    {
+                        throw new Exception(string.Format("JNI was not initialised before calling GetField for {0} with signature {1}", FieldName, sig));
+                    }
 
-                bool isStatic = javaObject == null || javaObject == IntPtr.Zero;
+                    IntPtr javaObject = javaObjectPointer == null ? IntPtr.Zero : javaObjectPointer.Value;
 
-                IntPtr FieldID = isStatic ?
-                    env.GetStaticFieldID(javaClass, FieldName, sig) :
-                    env.GetFieldID(javaClass, FieldName, sig);
-                if (typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte)) {
-                    // Get the byte Field 
-                    sbyte res = isStatic ?
-                        env.GetStaticByteField(javaClass, FieldID) :
-                        env.GetByteField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(sbyte[])
-                       || typeof(T) == typeof(byte[])) { // For now, use sbyte for both
-                    // Possibly add a warning in debug if byte is requested
-                    // Get the byte Field
-                    IntPtr jobj = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    sbyte[] res = GetArray<sbyte>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(bool)) {
-                    // Get the boolean Field 
-                    bool res = isStatic ?
-                        env.GetStaticBooleanField(javaClass, FieldID) :
-                        env.GetBooleanField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(bool[])) {
-                    // Get the int array Field
-                    IntPtr jobj = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    bool[] res = GetArray<bool>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(char)) {
-                    // Get the char Field 
-                    char res = isStatic ?
-                        env.GetStaticCharField(javaClass, FieldID) :
-                        env.GetCharField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(char[])) {
-                    // Get the int array Field
-                    IntPtr jobj = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    char[] res = GetArray<char>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(short)) {
-                    // Get the short Field 
-                    short res = isStatic ?
-                        env.GetStaticShortField(javaClass, FieldID) :
-                        env.GetShortField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(short[])) {
-                    // Get the int array Field
-                    IntPtr jobj = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    short[] res = GetArray<short>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(int)) {
-                    // Get the int Field               
-                    int res = isStatic ?
-                        env.GetStaticIntField(javaClass, FieldID) :
-                        env.GetIntField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(int[])) {
-                    // Get the int array Field
-                    IntPtr jobj = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    int[] res = GetArray<int>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(long)) {
-                    // Get the long Field 
-                    long res = isStatic ?
-                        env.GetStaticLongField(javaClass, FieldID) :
-                        env.GetLongField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(long[])) {
-                    // Get the int array Field
-                    IntPtr jobj = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    long[] res = GetArray<long>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(float)) {
-                    // Get the float Field 
-                    float res = isStatic ?
-                        env.GetStaticFloatField(javaClass, FieldID) :
-                        env.GetFloatField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(float[])) {
-                    // Get the float array values
-                    IntPtr jobj = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    float[] res = GetArray<float>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(double)) {
-                    // Get the double Field 
-                    double res = isStatic ?
-                        env.GetStaticDoubleField(javaClass, FieldID) :
-                        env.GetDoubleField(javaObject, FieldID);
-                    return (T)(object)res; // need to fix this
-                } else if (typeof(T) == typeof(double[])) {
-                    // Get the double array field values
-                    IntPtr jobj = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    double[] res = GetArray<double>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(string)) {
-                    // Get the string Field 
-                    IntPtr jstr = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
+                    bool isStatic = javaObject == IntPtr.Zero;
 
-                    string res = env.JStringToString(jstr);
-                    env.DeleteLocalRef(jstr);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(string[])) {
-                    // Get the string array Field
-                    IntPtr jobj = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
+                    IntPtr FieldID = isStatic ?
+                        env.GetStaticFieldID(javaClass, FieldName, sig) :
+                        env.GetFieldID(javaClass, FieldName, sig);
+                    if (typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte))
+                    {
+                        // Get the byte Field 
+                        sbyte res = isStatic ?
+                            env.GetStaticByteField(javaClass, FieldID) :
+                            env.GetByteField(javaObject, FieldID);
+                        return (T)(object)res;
                     }
-                    string[] res = GetArray<string>(jobj); ;
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(IntPtr)) {
-                    // Get the object Field
-                    IntPtr res = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(IntPtr[])) {
-                    // Get the int array Field
-                    IntPtr jobj = isStatic ?
-                        env.GetStaticObjectField(javaClass, FieldID) :
-                        env.GetObjectField(javaObject, FieldID);
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
+                    else if (typeof(T) == typeof(sbyte[])
+                           || typeof(T) == typeof(byte[]))
+                    { // For now, use sbyte for both
+                      // Possibly add a warning in debug if byte is requested
+                      // Get the byte Field
+                        IntPtr jobj = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        sbyte[] res = GetArray<sbyte>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
                     }
-                    IntPtr[] res = GetArray<IntPtr>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
+                    else if (typeof(T) == typeof(bool))
+                    {
+                        // Get the boolean Field 
+                        bool res = isStatic ?
+                            env.GetStaticBooleanField(javaClass, FieldID) :
+                            env.GetBooleanField(javaObject, FieldID);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(bool[]))
+                    {
+                        // Get the int array Field
+                        IntPtr jobj = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        bool[] res = GetArray<bool>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(char))
+                    {
+                        // Get the char Field 
+                        char res = isStatic ?
+                            env.GetStaticCharField(javaClass, FieldID) :
+                            env.GetCharField(javaObject, FieldID);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(char[]))
+                    {
+                        // Get the int array Field
+                        IntPtr jobj = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        char[] res = GetArray<char>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(short))
+                    {
+                        // Get the short Field 
+                        short res = isStatic ?
+                            env.GetStaticShortField(javaClass, FieldID) :
+                            env.GetShortField(javaObject, FieldID);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(short[]))
+                    {
+                        // Get the int array Field
+                        IntPtr jobj = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        short[] res = GetArray<short>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(int))
+                    {
+                        // Get the int Field               
+                        int res = isStatic ?
+                            env.GetStaticIntField(javaClass, FieldID) :
+                            env.GetIntField(javaObject, FieldID);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(int[]))
+                    {
+                        // Get the int array Field
+                        IntPtr jobj = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        int[] res = GetArray<int>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(long))
+                    {
+                        // Get the long Field 
+                        long res = isStatic ?
+                            env.GetStaticLongField(javaClass, FieldID) :
+                            env.GetLongField(javaObject, FieldID);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(long[]))
+                    {
+                        // Get the int array Field
+                        IntPtr jobj = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        long[] res = GetArray<long>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(float))
+                    {
+                        // Get the float Field 
+                        float res = isStatic ?
+                            env.GetStaticFloatField(javaClass, FieldID) :
+                            env.GetFloatField(javaObject, FieldID);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(float[]))
+                    {
+                        // Get the float array values
+                        IntPtr jobj = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        float[] res = GetArray<float>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(double))
+                    {
+                        // Get the double Field 
+                        double res = isStatic ?
+                            env.GetStaticDoubleField(javaClass, FieldID) :
+                            env.GetDoubleField(javaObject, FieldID);
+                        return (T)(object)res; // need to fix this
+                    }
+                    else if (typeof(T) == typeof(double[]))
+                    {
+                        // Get the double array field values
+                        IntPtr jobj = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        double[] res = GetArray<double>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(string))
+                    {
+                        // Get the string Field 
+                        IntPtr jstr = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+
+                        string res = env.JStringToString(jstr);
+                        env.DeleteLocalRef(jstr);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(string[]))
+                    {
+                        // Get the string array Field
+                        IntPtr jobj = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        string[] res = GetArray<string>(jobj); ;
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(IntPtr))
+                    {
+                        // Get the object Field
+                        IntPtr res = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(IntPtr[]))
+                    {
+                        // Get the int array Field
+                        IntPtr jobj = isStatic ?
+                            env.GetStaticObjectField(javaClass, FieldID) :
+                            env.GetObjectField(javaObject, FieldID);
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        IntPtr[] res = GetArray<IntPtr>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    return default(T);
+
+
                 }
-                return default(T);
-            } catch (Exception e) {
-                throw e;
+                catch (Exception)
+                {
+                    throw;
+                }
             }
         }
         #endregion
@@ -502,17 +658,33 @@ namespace org.daisy.jnet {
         /// <param name="param">parameters to used with </param>
         /// <exception cref="Exception">throws back any Java exception found during the method call</exception>
         public void CallVoidMethod(IntPtr javaClass, IntPtr javaObject, string methodName, string sig, params object[] param) {
-            try {
-                if(javaObject != null && javaObject != IntPtr.Zero) {
-                    IntPtr methodId = env.GetMethodID(javaClass, methodName, sig);
-                    env.CallVoidMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                } else {
-                    IntPtr methodId = env.GetStaticMethodID(javaClass, methodName, sig);
-                    env.CallStaticVoidMethod(javaClass, methodId, ParseParameters(javaClass, sig, param));
+            lock (this)
+            {
+                try
+                {
+                    if (env == null)
+                    {
+                        throw new Exception(string.Format("JNI was not initialised before trying to call method {0} with signature {1}", methodName, sig));
+                    }
+
+                    if (javaObject != IntPtr.Zero)
+                    {
+                        IntPtr methodId = env.GetMethodID(javaClass, methodName, sig);
+                        env.CallVoidMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                    }
+                    else
+                    {
+                        IntPtr methodId = env.GetStaticMethodID(javaClass, methodName, sig);
+                        env.CallStaticVoidMethod(javaClass, methodId, ParseParameters(javaClass, sig, param));
+                    }
                 }
-            } catch (Exception e) {
-                throw e;
+
+                catch (Exception)
+                {
+                    throw;
+                }
             }
+            
         }
 
         /// <summary>
@@ -534,198 +706,260 @@ namespace org.daisy.jnet {
         /// like new object[]{ new string[]{} }  </b> </param>
         /// <returns></returns>
         /// <exception cref="Exception">throws back any Java exception found during the method call</exception>
-        public T CallMethod<T>(IntPtr javaClass, IntPtr javaObject, string methodName, string sig, params object[] param) {
-            try {
-                
-                bool isStatic = javaObject == null || javaObject == IntPtr.Zero;
-
-                IntPtr methodId = isStatic ?
-                    env.GetStaticMethodID(javaClass, methodName, sig) :
-                    env.GetMethodID(javaClass, methodName, sig);
-                if (typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte)) {
-                    // Call the byte method 
-                    sbyte res = isStatic ?
-                        env.CallStaticByteMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallByteMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(byte[]) || typeof(T) == typeof(sbyte[])) {
-                    // Call the byte method
-                    IntPtr jobj = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    sbyte[] res = GetArray<sbyte>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(bool)) {
-                    // Call the boolean method 
-                    bool res = isStatic ?
-                        env.CallStaticBooleanMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallBooleanMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(bool[])) {
-                    // Call the byte method
-                    IntPtr jobj = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    bool[] res = GetArray<bool>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(char)) {
-                    // Call the char method 
-                    char res = isStatic ?
-                        env.CallStaticCharMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallCharMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(char[])) {
-                    // Call the byte method
-                    IntPtr jobj = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    char[] res = GetArray<char>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(short)) {
-                    // Call the short method 
-                    short res = isStatic ?
-                        env.CallStaticShortMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallShortMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(short[])) {
-                    // Call the byte method
-                    IntPtr jobj = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    short[] res = GetArray<short>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(int)) {
-                    // Call the int method               
-                    int res = isStatic ?
-                        env.CallStaticIntMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallIntMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(int[])) {
-                    // Call the byte method
-                    IntPtr jobj = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    int[] res = GetArray<int>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(long)) {
-                    // Call the long method 
-                    long res = isStatic ?
-                        env.CallStaticLongMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallLongMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(long[])) {
-                    // Call the byte method
-                    IntPtr jobj = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    long[] res = GetArray<long>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(float)) {
-                    // Call the float method 
-                    float res = isStatic ?
-                        env.CallStaticFloatMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallFloatMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(float[])) {
-                    // Call the byte method
-                    IntPtr jobj = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    float[] res = GetArray<float>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(double)) {
-                    // Call the double method 
-                    double res = isStatic ?
-                        env.CallStaticDoubleMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallDoubleMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    return (T)(object)res; // need to fix this
-                } else if (typeof(T) == typeof(double[])) {
-                    // Call the byte method
-                    IntPtr jobj = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
-                    }
-                    double[] res = GetArray<double>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(string)) {
-                    // Call the string method 
-                    IntPtr jstr = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-
-                    string res = env.JStringToString(jstr);
-                    env.DeleteLocalRef(jstr);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(string[])) {
-                    // Call the string array method
-                    IntPtr jobj = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
+        public T CallMethod<T>(IntPtr javaClass, IntPtr? javaObjectPointer, string methodName, string sig, params object[] param) {
+            lock (this)
+            {
+                try
+                {
+                    if (env == null)
+                    {
+                        throw new Exception(string.Format("JNI was not initialised before calling CallMethod for {0} with signature {1}", methodName, sig));
                     }
 
-                    IntPtr[] objArray = env.GetObjectArray(jobj);
-                    string[] res = new string[objArray.Length];
+                    IntPtr javaObject = javaObjectPointer == null ? IntPtr.Zero : javaObjectPointer.Value;
+                    bool isStatic = javaObject == IntPtr.Zero;
 
-                    for (int i = 0; i < objArray.Length; i++) {
-                        res[i] = env.JStringToString(objArray[i]);
+                    IntPtr methodId = isStatic ?
+                        env.GetStaticMethodID(javaClass, methodName, sig) :
+                        env.GetMethodID(javaClass, methodName, sig);
+                    if (typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte))
+                    {
+                        // Call the byte method 
+                        sbyte res = isStatic ?
+                            env.CallStaticByteMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallByteMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        return (T)(object)res;
                     }
+                    else if (typeof(T) == typeof(byte[]) || typeof(T) == typeof(sbyte[]))
+                    {
+                        // Call the byte method
+                        IntPtr jobj = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        sbyte[] res = GetArray<sbyte>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(bool))
+                    {
+                        // Call the boolean method 
+                        bool res = isStatic ?
+                            env.CallStaticBooleanMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallBooleanMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(bool[]))
+                    {
+                        // Call the byte method
+                        IntPtr jobj = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        bool[] res = GetArray<bool>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(char))
+                    {
+                        // Call the char method 
+                        char res = isStatic ?
+                            env.CallStaticCharMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallCharMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(char[]))
+                    {
+                        // Call the byte method
+                        IntPtr jobj = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        char[] res = GetArray<char>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(short))
+                    {
+                        // Call the short method 
+                        short res = isStatic ?
+                            env.CallStaticShortMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallShortMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(short[]))
+                    {
+                        // Call the byte method
+                        IntPtr jobj = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        short[] res = GetArray<short>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(int))
+                    {
+                        // Call the int method               
+                        int res = isStatic ?
+                            env.CallStaticIntMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallIntMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(int[]))
+                    {
+                        // Call the byte method
+                        IntPtr jobj = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        int[] res = GetArray<int>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(long))
+                    {
+                        // Call the long method 
+                        long res = isStatic ?
+                            env.CallStaticLongMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallLongMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(long[]))
+                    {
+                        // Call the byte method
+                        IntPtr jobj = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        long[] res = GetArray<long>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(float))
+                    {
+                        // Call the float method 
+                        float res = isStatic ?
+                            env.CallStaticFloatMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallFloatMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(float[]))
+                    {
+                        // Call the byte method
+                        IntPtr jobj = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        float[] res = GetArray<float>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(double))
+                    {
+                        // Call the double method 
+                        double res = isStatic ?
+                            env.CallStaticDoubleMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallDoubleMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        return (T)(object)res; // need to fix this
+                    }
+                    else if (typeof(T) == typeof(double[]))
+                    {
+                        // Call the byte method
+                        IntPtr jobj = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        double[] res = GetArray<double>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(string))
+                    {
+                        // Call the string method 
+                        IntPtr jstr = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
 
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(IntPtr)) {
-                    // Call the object method and deal with whatever comes back in the call code 
-                    IntPtr res = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    return (T)(object)res;
-                } else if (typeof(T) == typeof(IntPtr[])) {
-                    // Call the byte method
-                    IntPtr jobj = isStatic ?
-                        env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
-                        env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
-                    if (jobj == IntPtr.Zero) {
-                        return default(T);
+                        string res = env.JStringToString(jstr);
+                        env.DeleteLocalRef(jstr);
+                        return (T)(object)res;
                     }
-                    IntPtr[] res = GetArray<IntPtr>(jobj);
-                    env.DeleteLocalRef(jobj);
-                    return (T)(object)res;
+                    else if (typeof(T) == typeof(string[]))
+                    {
+                        // Call the string array method
+                        IntPtr jobj = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+
+                        IntPtr[] objArray = env.GetObjectArray(jobj);
+                        string[] res = new string[objArray.Length];
+
+                        for (int i = 0; i < objArray.Length; i++)
+                        {
+                            res[i] = env.JStringToString(objArray[i]);
+                        }
+
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(IntPtr))
+                    {
+                        // Call the object method and deal with whatever comes back in the call code 
+                        IntPtr res = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        return (T)(object)res;
+                    }
+                    else if (typeof(T) == typeof(IntPtr[]))
+                    {
+                        // Call the byte method
+                        IntPtr jobj = isStatic ?
+                            env.CallStaticObjectMethod(javaClass, methodId, ParseParameters(javaClass, sig, param)) :
+                            env.CallObjectMethod(javaObject, methodId, ParseParameters(javaClass, sig, param));
+                        if (jobj == IntPtr.Zero)
+                        {
+                            return default(T);
+                        }
+                        IntPtr[] res = GetArray<IntPtr>(jobj);
+                        env.DeleteLocalRef(jobj);
+                        return (T)(object)res;
+                    }
+                    return default(T);
+
                 }
-                return default(T);
-            } catch (Exception e){
-                throw e;
+                catch (Exception)
+                {
+                    throw;
+                }
             }
         }
 
@@ -735,33 +969,45 @@ namespace org.daisy.jnet {
 
 
         protected virtual void Dispose(bool disposing) {
-            // free native resources if there are any.
-            foreach (KeyValuePair<string, IntPtr> javaClass in usedClasses) {
-                if (javaClass.Value != IntPtr.Zero) {
-                    env.DeleteGlobalRef(javaClass.Value);
-                    usedClasses[javaClass.Key] = IntPtr.Zero;
+            lock (this)
+            {
+                // free native resources if there are any.
+                foreach (KeyValuePair<string, IntPtr> javaClass in usedClasses)
+                {
+                    if (javaClass.Value != IntPtr.Zero)
+                    {
+                        env?.DeleteGlobalRef(javaClass.Value);
+                        usedClasses[javaClass.Key] = IntPtr.Zero;
+                    }
                 }
-            }
-            for (int i = 0, end = usedObject.Count; i < end; ++i) {
-                IntPtr javaObject = usedObject[i];
-                if (javaObject != IntPtr.Zero) {
-                    env.DeleteLocalRef(javaObject);
-                    usedObject[i] = IntPtr.Zero;
+                for (int i = 0, end = usedObject.Count; i < end; ++i)
+                {
+                    IntPtr javaObject = usedObject[i];
+                    if (javaObject != IntPtr.Zero)
+                    {
+                        env?.DeleteLocalRef(javaObject);
+                        usedObject[i] = IntPtr.Zero;
+                    }
                 }
-            }
 
-            if (disposing) {
-                // free managed resources
-                if (jvm != null) {
-                    jvm.Dispose();
-                    jvm = null;
-                }
+                if (disposing)
+                {
+                    // free managed resources
+                    if (jvm != null)
+                    {
+                        jvm.Dispose();
+                        jvm = null;
+                    }
 
-                if (env != null) {
-                    env.Dispose();
-                    env = null;
+                    if (env != null)
+                    {
+                        env.Dispose();
+                        env = null;
+                        
+                    }
                 }
             }
+            
         }
 
         #region Parameters parsing utilities
@@ -773,6 +1019,7 @@ namespace org.daisy.jnet {
         /// <param name="param"></param>
         /// <returns></returns>
         private JValue[] ParseParameters(IntPtr javaClass, string sig, params object[] param) {
+            
             JValue[] retval = new JValue[param.Length];
 
             int startIndex = sig.IndexOf('(') + 1;
@@ -784,20 +1031,27 @@ namespace org.daisy.jnet {
                     startIndex += 1;
                 }
                 if (sig.Substring(startIndex, 1) == "L") {
-                    paramSig = paramSig + sig.Substring(startIndex, sig.IndexOf(';', startIndex) - startIndex);
+                    paramSig += sig.Substring(startIndex, sig.IndexOf(';', startIndex) - startIndex);
                     startIndex++; // skip past ;
                 } else {
-                    paramSig = paramSig + sig.Substring(startIndex, 1);
+                    paramSig += sig.Substring(startIndex, 1);
                 }
 
-                startIndex = startIndex + (paramSig.Length - (paramSig.IndexOf("[", StringComparison.Ordinal) + 1));
+                startIndex += (paramSig.Length - (paramSig.IndexOf("[", StringComparison.Ordinal) + 1));
 
                 if (param[i] is string) {
                     // also adding Object test for generics
                     if (!(paramSig.Equals("Ljava/lang/String") || paramSig.Equals("Ljava/lang/Object"))) {
                         throw new Exception("Signature (" + paramSig + ") does not match parameter value (" + param[i].GetType().ToString() + ").");
                     }
-                    retval[i] = new JValue() { L = env.NewString(param[i].ToString(), param[i].ToString().Length) };
+                    if (env == null)
+                    {
+                        throw new Exception(string.Format("JNI was not initialised before trying to create a java string"));
+                    }
+                    lock (env)
+                    {
+                        retval[i] = new JValue() { L = env.NewString(param[i].ToString(), param[i].ToString().Length) };
+                    }
                 } else if (param[i] == null) {
                     retval[i] = new JValue(); // Just leave as default value
                 } else if (paramSig.StartsWith("[")) {
@@ -806,7 +1060,7 @@ namespace org.daisy.jnet {
                     retval[i] = new JValue() { L = (IntPtr)param[i] };
                 } else {
                     retval[i] = new JValue();
-                    FieldInfo paramField = retval[i].GetType().GetFields(BindingFlags.Public | BindingFlags.Instance).AsQueryable().FirstOrDefault(a => a.Name.ToUpper().Equals(paramSig));
+                    FieldInfo? paramField = retval[i].GetType().GetFields(BindingFlags.Public | BindingFlags.Instance).AsQueryable().FirstOrDefault(a => a.Name.ToUpper().Equals(paramSig));
                     if ((paramField != null) && ((param[i].GetType() == paramField.FieldType) || ((paramField.FieldType == typeof(bool)) && (param[i] is byte)))) {
                         paramField.SetValueDirect(__makeref(retval[i]), paramField.FieldType == typeof(bool)  // this is an undocumented feature to set struct fields via reflection
                                                       ? JavaVM.BooleanToByte((bool)param[i])
@@ -819,6 +1073,11 @@ namespace org.daisy.jnet {
 
 
         private JValue ProcessArrayType(IntPtr javaClass, string paramSig, object param) {
+            if (env == null)
+            {
+                throw new Exception(string.Format("JNI was not initialised before trying to process an array type"));
+            }
+            
             IntPtr arrPointer;
             if (paramSig.Equals("[I"))
                 arrPointer = env.NewIntArray(((Array)param).Length, javaClass);
@@ -834,35 +1093,47 @@ namespace org.daisy.jnet {
                 arrPointer = env.NewDoubleArray(((Array)param).Length, javaClass);
             else if (paramSig.Equals("[F"))
                 arrPointer = env.NewFloatArray(((Array)param).Length, javaClass);
-            else if (paramSig.Contains("[Ljava/lang/String")) {
+            else if (paramSig.Contains("[Ljava/lang/String"))
+            {
                 IntPtr jclass = env.FindClass("Ljava/lang/String;");
-                try {
+                try
+                {
                     arrPointer = env.NewObjectArray(((Array)param).Length, jclass, IntPtr.Zero);
-                } finally {
+                }
+                finally
+                {
                     env.DeleteLocalRef(jclass);
                 }
 
-            } else if (paramSig.Contains("[Ljava/lang/"))
+            }
+            else if (paramSig.Contains("[Ljava/lang/"))
                 arrPointer = env.NewObjectArray(((Array)param).Length, javaClass, (IntPtr)param);
-            else {
+            else
+            {
                 throw new Exception("Signature (" + paramSig + ") does not match parameter value (" +
-                                   param.GetType().ToString() + "). All arrays types should be defined as objects because I do not have enough time to defines every possible array type");
+                                    param.GetType().ToString() + "). All arrays types should be defined as objects because I do not have enough time to defines every possible array type");
             }
 
-            if (paramSig.Contains("[Ljava/lang/")) {
-                for (int j = 0; j < ((Array)param).Length; j++) {
+            if (paramSig.Contains("[Ljava/lang/"))
+            {
+                for (int j = 0; j < ((Array)param).Length; j++)
+                {
                     object obj = ((Array)param).GetValue(j);
 
-                    if (paramSig.Contains("[Ljava/lang/String")) {
+                    if (paramSig.Contains("[Ljava/lang/String"))
+                    {
                         IntPtr str = env.NewString(obj.ToString(), obj.ToString().Length);
                         env.SetObjectArrayElement(arrPointer, j, str);
-                    } else
+                    }
+                    else
                         env.SetObjectArrayElement(arrPointer, j, (IntPtr)obj);
                 }
-            } else
+            }
+            else
                 env.PackPrimitiveArray<int>((int[])param, arrPointer);
 
             return new JValue() { L = arrPointer };
+            
         }
         #endregion
     }

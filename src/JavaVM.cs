@@ -23,7 +23,7 @@ namespace org.daisy.jnet {
         // If loading the library is not enough for DLL Import to get the correct jvml
         // https://stackoverflow.com/questions/16518943/dllimport-or-loadlibrary-for-best-performance
 
-        private static class KernelMethods {
+        private static class WindowsKernel {
 
             [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
             public static extern IntPtr LoadLibrary(string lpFileName);
@@ -46,9 +46,9 @@ namespace org.daisy.jnet {
         public static void loadAssembly(string jvm_dll_path) {
             int lastError = 0;
             if(_dllPtr != IntPtr.Zero) {
-                KernelMethods.FreeLibrary(_dllPtr);
+                WindowsKernel.FreeLibrary(_dllPtr);
             }
-            _dllPtr = KernelMethods.LoadLibrary(jvm_dll_path);
+            _dllPtr = WindowsKernel.LoadLibrary(jvm_dll_path);
             if(_dllPtr == IntPtr.Zero) {
                 lastError = Marshal.GetLastWin32Error();
                 throw new Exception($"An error occured while loading {jvm_dll_path} - code " + lastError);
@@ -56,7 +56,7 @@ namespace org.daisy.jnet {
             // Just in case :
             // according to DLL search order, previously loaded DLL are prioritized
             // But just in case, i also set the dll search directory to ensure 
-            bool dllDirValid = KernelMethods.SetDllDirectory(Path.GetDirectoryName(jvm_dll_path));
+            bool dllDirValid = WindowsKernel.SetDllDirectory(Path.GetDirectoryName(jvm_dll_path));
             if (_dllPtr == IntPtr.Zero || !dllDirValid) {
                 throw new Exception($"An error occured while loading {jvm_dll_path}");
             }
@@ -177,10 +177,11 @@ namespace org.daisy.jnet {
         /// <typeparam name="T"></typeparam>
         /// <param name="ptr"></param>
         /// <param name="res"></param>
-        public static void GetDelegateForFunctionPointer<T>(IntPtr ptr, ref T res)
+        public static T GetDelegateForFunctionPointer<T>(IntPtr ptr, ref T res)
         {  // Converts an unmanaged function pointer to a delegate.
             res = (T)(object)Marshal.GetDelegateForFunctionPointer(ptr, typeof(T));
             // Note : after .net framework 4.5.1, function is now using template notation instead of parameter for the type
+            return res;
         }
 
         internal int AttachCurrentThread(out JNIEnv penv, JavaVMInitArgs? args)

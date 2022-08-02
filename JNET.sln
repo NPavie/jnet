@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30011.22
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32516.85
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JNET", "JNET.csproj", "{941DF07F-3EE8-4793-ABBA-659F2E0598C3}"
 EndProject
@@ -10,6 +10,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApplicationWithIntegratedJRE", "samples\ApplicationWithIntegratedJRE\ApplicationWithIntegratedJRE.csproj", "{B4D9E238-8D31-4355-814F-BEC3A368CD07}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PipelineConnector", "samples\PipelineConnector\PipelineConnector.csproj", "{94493DFF-BBA9-4F53-8157-9058CEA0DD45}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JNETCore", "JNETCore\JNETCore.csproj", "{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -69,6 +71,18 @@ Global
 		{94493DFF-BBA9-4F53-8157-9058CEA0DD45}.Release|x64.Build.0 = Release|Any CPU
 		{94493DFF-BBA9-4F53-8157-9058CEA0DD45}.Release|x86.ActiveCfg = Release|Any CPU
 		{94493DFF-BBA9-4F53-8157-9058CEA0DD45}.Release|x86.Build.0 = Release|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Debug|x64.Build.0 = Debug|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Debug|x86.Build.0 = Debug|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Release|x64.ActiveCfg = Release|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Release|x64.Build.0 = Release|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Release|x86.ActiveCfg = Release|Any CPU
+		{A45B2BEC-E7A4-4ED2-8AED-4C5E63DC9EAE}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

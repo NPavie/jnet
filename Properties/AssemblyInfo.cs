@@ -6,11 +6,11 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("JNET")]
-[assembly: AssemblyDescription("JNI Binding and minimal bridge for C#/.Net")]
+[assembly: AssemblyDescription("Java Native Interface (JNI) Binding and minimal bridge for C#/.Net")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("Braillenet")]
-[assembly: AssemblyProduct("JNI")]
-[assembly: AssemblyCopyright("Copyright © Nicolas Pavie 2020")]
+[assembly: AssemblyCompany("DAISY Consortium")]
+[assembly: AssemblyProduct("JNET library")]
+[assembly: AssemblyCopyright("Copyright © Nicolas Pavie 2022")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

@@ -3,13 +3,9 @@
 // substantial performance savings in applications that make multiple JNI calls
 
 using System;
-using System.Diagnostics;
-using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
-using System.Runtime.CompilerServices;
 using System.Security;
-using System.Reflection;
-using System.Security.Permissions;
+
 
 
 
@@ -72,7 +68,7 @@ namespace org.daisy.jnet {
 
         public jint GetVersion() {
             if (getVersion == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetVersion, ref getVersion);
+                getVersion = JavaVM.GetDelegateForFunctionPointer(functions.GetVersion, ref getVersion);
             }
             jint res = getVersion.Invoke(Env);
             CheckJavaExceptionAndThrow();
@@ -89,7 +85,7 @@ namespace org.daisy.jnet {
 
         public JavaVM GetJavaVM() {
             if (getJavaVM == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetJavaVM, ref getJavaVM);
+                getJavaVM = JavaVM.GetDelegateForFunctionPointer(functions.GetJavaVM, ref getJavaVM);
             }
 
             if (javaVM == null) {
@@ -102,7 +98,7 @@ namespace org.daisy.jnet {
 
         public jclass FindClass(string name) {
             if (findClass == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.FindClass, ref findClass);
+                findClass = JavaVM.GetDelegateForFunctionPointer(functions.FindClass, ref findClass);
             }
             jclass res = findClass(Env, name);
             CheckJavaExceptionAndThrow();
@@ -111,7 +107,7 @@ namespace org.daisy.jnet {
 
         public jmethodID FromReflectedMethod(jobject method) {
             if (fromReflectedMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.FromReflectedMethod, ref fromReflectedMethod);
+                fromReflectedMethod = JavaVM.GetDelegateForFunctionPointer(functions.FromReflectedMethod, ref fromReflectedMethod);
             }
             jmethodID res = fromReflectedMethod.Invoke(Env, method);
             CheckJavaExceptionAndThrow();
@@ -121,7 +117,7 @@ namespace org.daisy.jnet {
 
         public jfieldID FromReflectedField(jobject field) {
             if (fromReflectedField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.FromReflectedField, ref fromReflectedField);
+                fromReflectedField = JavaVM.GetDelegateForFunctionPointer(functions.FromReflectedField, ref fromReflectedField);
             }
             jfieldID res = fromReflectedField.Invoke(Env, field);
             CheckJavaExceptionAndThrow();
@@ -130,7 +126,7 @@ namespace org.daisy.jnet {
 
         public jobject ToReflectedMethod(jclass cls, jmethodID methodID, jboolean isStatic) {
             if (toReflectedMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ToReflectedMethod, ref toReflectedMethod);
+                toReflectedMethod = JavaVM.GetDelegateForFunctionPointer(functions.ToReflectedMethod, ref toReflectedMethod);
             }
             jobject res = toReflectedMethod.Invoke(Env, cls, methodID, isStatic);
             CheckJavaExceptionAndThrow();
@@ -139,7 +135,7 @@ namespace org.daisy.jnet {
 
         public jclass GetSuperclass(jclass sub) {
             if (getSuperclass == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetSuperclass, ref getSuperclass);
+                getSuperclass = JavaVM.GetDelegateForFunctionPointer(functions.GetSuperclass, ref getSuperclass);
             }
             jclass res = getSuperclass.Invoke(Env, sub);
             CheckJavaExceptionAndThrow();
@@ -148,7 +144,7 @@ namespace org.daisy.jnet {
 
         public jboolean IsAssignableFrom(jclass sub, jclass sup) {
             if (isAssignableFrom == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.IsAssignableFrom, ref isAssignableFrom);
+                isAssignableFrom = JavaVM.GetDelegateForFunctionPointer(functions.IsAssignableFrom, ref isAssignableFrom);
             }
             jboolean res = isAssignableFrom.Invoke(Env, sub, sup);
             CheckJavaExceptionAndThrow();
@@ -157,7 +153,7 @@ namespace org.daisy.jnet {
 
         public jclass GetObjectClass(jobject obj) {
             if (getObjectClass == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetObjectClass, ref getObjectClass);
+                getObjectClass = JavaVM.GetDelegateForFunctionPointer(functions.GetObjectClass, ref getObjectClass);
             }
             jclass clazz = getObjectClass.Invoke(Env, obj);
             CheckJavaExceptionAndThrow();
@@ -165,18 +161,23 @@ namespace org.daisy.jnet {
         }
 
         public IntPtr GetMethodID(jclass clazz, string name, string sig) {
-            if (getMethodID == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetMethodID, ref getMethodID);
-            }
+            lock (this)
+            {
+                if (getMethodID == null)
+                {
+                    getMethodID = JavaVM.GetDelegateForFunctionPointer(functions.GetMethodID, ref getMethodID);
+                }
 
-            IntPtr res = getMethodID.Invoke(Env, clazz, name, sig);
-            CheckJavaExceptionAndThrow();
-            return res;
+                IntPtr res = getMethodID.Invoke(Env, clazz, name, sig);
+                CheckJavaExceptionAndThrow();
+                return res;
+            }
+            
         }
 
         public IntPtr GetFieldID(jclass clazz, string name, string sig) {
             if (getFieldID == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetFieldID, ref getFieldID);
+                getFieldID = JavaVM.GetDelegateForFunctionPointer(functions.GetFieldID, ref getFieldID);
             }
             IntPtr res = getFieldID.Invoke(Env, clazz, name, sig);
             CheckJavaExceptionAndThrow();
@@ -185,7 +186,7 @@ namespace org.daisy.jnet {
 
         public IntPtr GetStaticFieldID(IntPtr classHandle, string name, string sig) {
             if (getStaticFieldID == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStaticFieldID, ref getStaticFieldID);
+                getStaticFieldID = JavaVM.GetDelegateForFunctionPointer(functions.GetStaticFieldID, ref getStaticFieldID);
             }
             IntPtr res = getStaticFieldID(Env, classHandle, name, sig);
             CheckJavaExceptionAndThrow();
@@ -194,7 +195,7 @@ namespace org.daisy.jnet {
 
         public IntPtr GetStaticMethodID(jclass clazz, string name, string sig) {
             if (getStaticmethodID == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStaticmethodID, ref getStaticmethodID);
+                getStaticmethodID = JavaVM.GetDelegateForFunctionPointer(functions.GetStaticmethodID, ref getStaticmethodID);
             }
             IntPtr res = getStaticmethodID.Invoke(Env, clazz, name, sig);
             CheckJavaExceptionAndThrow();
@@ -203,7 +204,7 @@ namespace org.daisy.jnet {
 
         public jobjectRefType GetObjectRefType(jobject obj) {
             if (getObjectRefType == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetObjectRefType, ref getObjectRefType);
+                getObjectRefType = JavaVM.GetDelegateForFunctionPointer(functions.GetObjectRefType, ref getObjectRefType);
             }
             jobjectRefType res = getObjectRefType.Invoke(Env, obj);
             CheckJavaExceptionAndThrow();
@@ -212,7 +213,7 @@ namespace org.daisy.jnet {
 
         public IntPtr GetModule(jclass clazz) {
             if (getObjectRefType == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetModule, ref getModule);
+                getModule = JavaVM.GetDelegateForFunctionPointer(functions.GetModule, ref getModule);
             }
             IntPtr res = getModule.Invoke(Env, clazz);
             CheckJavaExceptionAndThrow();
@@ -222,7 +223,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewObject(jclass clazz,  jmethodID methodID, params JValue[] args) {
             if (newObject == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewObjectA, ref newObject);
+                newObject = JavaVM.GetDelegateForFunctionPointer(functions.NewObjectA, ref newObject);
             }
 
             IntPtr res = newObject(Env, clazz, methodID, args);
@@ -232,7 +233,7 @@ namespace org.daisy.jnet {
 
         internal IntPtr AllocObject(IntPtr classHandle) {
             if (allocObject == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.AllocObject, ref allocObject);
+                allocObject = JavaVM.GetDelegateForFunctionPointer(functions.AllocObject, ref allocObject);
             }
             IntPtr res = allocObject(Env, classHandle);
             CheckJavaExceptionAndThrow();
@@ -242,7 +243,7 @@ namespace org.daisy.jnet {
         // RegisterNatives\UnRegisterNatives will not work until I fix the the class JNINativeMethod
         public int RegisterNatives(IntPtr classHandle, JNINativeMethod* methods, int nMethods) {
             if (registerNatives == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.RegisterNatives, ref registerNatives);
+                registerNatives = JavaVM.GetDelegateForFunctionPointer(functions.RegisterNatives, ref registerNatives);
             }
             int res = registerNatives.Invoke(Env, classHandle, methods, nMethods);
             CheckJavaExceptionAndThrow();
@@ -251,7 +252,7 @@ namespace org.daisy.jnet {
 
         public int UnregisterNatives(IntPtr classHandle) {
             if (unregisterNatives == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.UnregisterNatives, ref unregisterNatives);
+                unregisterNatives = JavaVM.GetDelegateForFunctionPointer(functions.UnregisterNatives, ref unregisterNatives);
             }
             int res = unregisterNatives.Invoke(Env, classHandle);
             CheckJavaExceptionAndThrow();
@@ -262,7 +263,7 @@ namespace org.daisy.jnet {
 
         public IntPtr ToReflectedField(IntPtr classHandle, IntPtr fieldID, bool isStatic) {
             if (toReflectedField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ToReflectedField, ref toReflectedField);
+                toReflectedField = JavaVM.GetDelegateForFunctionPointer(functions.ToReflectedField, ref toReflectedField);
             }
             IntPtr res = toReflectedField.Invoke(Env, classHandle, fieldID,
                                                  JavaVM.BooleanToByte(isStatic));
@@ -272,7 +273,7 @@ namespace org.daisy.jnet {
 
         public IntPtr ToReflectedMethod(IntPtr classHandle,  jmethodID methodID, bool isStatic) {
             if (toReflectedMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ToReflectedMethod, ref toReflectedMethod);
+                toReflectedMethod = JavaVM.GetDelegateForFunctionPointer(functions.ToReflectedMethod, ref toReflectedMethod);
             }
             IntPtr res = toReflectedMethod.Invoke(Env, classHandle, methodID,
                                                   JavaVM.BooleanToByte(isStatic));
@@ -290,7 +291,7 @@ namespace org.daisy.jnet {
         // i.e do not use functions.CallObjectMethod but use functions.CallObjectMethodA
         public IntPtr CallObjectMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
             if (callObjectMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallObjectMethodA, ref callObjectMethod);
+                callObjectMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallObjectMethodA, ref callObjectMethod);
             }
             IntPtr res = callObjectMethod(Env, obj, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -299,7 +300,7 @@ namespace org.daisy.jnet {
 
         public bool CallBooleanMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
             if (callBooleanMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallBooleanMethodA, ref callBooleanMethod);
+                callBooleanMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallBooleanMethodA, ref callBooleanMethod);
             }
             bool res = callBooleanMethod(Env, obj, methodID, args) != 0;
             CheckJavaExceptionAndThrow();
@@ -308,7 +309,7 @@ namespace org.daisy.jnet {
 
         public int CallIntMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
             if (callIntMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallIntMethodA, ref callIntMethod);
+                callIntMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallIntMethodA, ref callIntMethod);
             }
             int res = callIntMethod(Env, obj, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -317,7 +318,7 @@ namespace org.daisy.jnet {
 
         public short CallShortMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
             if (callShortMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallShortMethodA, ref callShortMethod);
+                callShortMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallShortMethodA, ref callShortMethod);
             }
             short res = callShortMethod(Env, obj, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -326,7 +327,7 @@ namespace org.daisy.jnet {
 
         public long CallLongMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
             if (callLongMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallLongMethodA, ref callLongMethod);
+                callLongMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallLongMethodA, ref callLongMethod);
             }
             long res = callLongMethod(Env, obj, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -335,7 +336,7 @@ namespace org.daisy.jnet {
 
         public sbyte CallByteMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
             if (callByteMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallByteMethodA, ref callByteMethod);
+                callByteMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallByteMethodA, ref callByteMethod);
             }
             sbyte res = callByteMethod(Env, obj, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -344,7 +345,7 @@ namespace org.daisy.jnet {
 
         public double CallDoubleMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
             if (callDoubleMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallDoubleMethodA, ref callDoubleMethod);
+                callDoubleMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallDoubleMethodA, ref callDoubleMethod);
             }
             double res = callDoubleMethod(Env, obj, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -353,7 +354,7 @@ namespace org.daisy.jnet {
 
         public float CallFloatMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
             if (callFloatMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallFloatMethodA, ref callFloatMethod);
+                callFloatMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallFloatMethodA, ref callFloatMethod);
             }
             float res = callFloatMethod(Env, obj, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -362,7 +363,7 @@ namespace org.daisy.jnet {
 
         public char CallCharMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
             if (callCharMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallCharMethodA, ref callCharMethod);
+                callCharMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallCharMethodA, ref callCharMethod);
             }
             var res = (char)callCharMethod(Env, obj, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -371,7 +372,7 @@ namespace org.daisy.jnet {
 
         public void CallVoidMethod(jobject obj,  jmethodID methodID, params JValue[] args) {
             if (callVoidMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallVoidMethodA, ref callVoidMethod);
+                callVoidMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallVoidMethodA, ref callVoidMethod);
             }
             callVoidMethod(Env, obj, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -384,7 +385,7 @@ namespace org.daisy.jnet {
 
         public void CallStaticVoidMethod(jclass clazz, jmethodID methodID, params JValue[] args) {
             if (callStaticVoidMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallStaticVoidMethodA, ref callStaticVoidMethod);
+                callStaticVoidMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallStaticVoidMethodA, ref callStaticVoidMethod);
             }
             callStaticVoidMethod(Env, clazz, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -392,7 +393,7 @@ namespace org.daisy.jnet {
 
         public IntPtr CallStaticObjectMethod(jclass clazz, jmethodID methodID, params JValue[] args) {
             if (callStaticObjectMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallStaticObjectMethodA, ref callStaticObjectMethod);
+                callStaticObjectMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallStaticObjectMethodA, ref callStaticObjectMethod);
             }
             IntPtr res = callStaticObjectMethod(Env, clazz, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -401,7 +402,7 @@ namespace org.daisy.jnet {
 
         public int CallStaticIntMethod(jclass clazz,  jmethodID methodID, params JValue[] args) {
             if (callStaticIntMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallStaticIntMethodA, ref callStaticIntMethod);
+                callStaticIntMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallStaticIntMethodA, ref callStaticIntMethod);
             }
             int res = callStaticIntMethod(Env, clazz, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -410,7 +411,7 @@ namespace org.daisy.jnet {
 
         public long CallStaticLongMethod(jclass clazz,  jmethodID methodID, params JValue[] args) {
             if (callStaticLongMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallStaticLongMethodA, ref callStaticLongMethod);
+                callStaticLongMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallStaticLongMethodA, ref callStaticLongMethod);
             }
             long res = callStaticLongMethod(Env, clazz, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -419,7 +420,7 @@ namespace org.daisy.jnet {
 
         public double CallStaticDoubleMethod(jclass clazz,  jmethodID methodID, params JValue[] args) {
             if (callStaticDoubleMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallStaticDoubleMethodA, ref callStaticDoubleMethod);
+                callStaticDoubleMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallStaticDoubleMethodA, ref callStaticDoubleMethod);
             }
             double res = callStaticDoubleMethod(Env, clazz, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -428,7 +429,7 @@ namespace org.daisy.jnet {
 
         public float CallStaticFloatMethod(jclass clazz,  jmethodID methodID, params JValue[] args) {
             if (callStaticFloatMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallStaticFloatMethodA, ref callStaticFloatMethod);
+                callStaticFloatMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallStaticFloatMethodA, ref callStaticFloatMethod);
             }
             float res = callStaticFloatMethod(Env, clazz, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -437,7 +438,7 @@ namespace org.daisy.jnet {
 
         public short CallStaticShortMethod(jclass clazz,  jmethodID methodID, params JValue[] args) {
             if (callStaticShortMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallStaticShortMethodA, ref callStaticShortMethod);
+                callStaticShortMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallStaticShortMethodA, ref callStaticShortMethod);
             }
             short res = callStaticShortMethod(Env, clazz, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -446,7 +447,7 @@ namespace org.daisy.jnet {
 
         public char CallStaticCharMethod(jclass clazz,  jmethodID methodID, params JValue[] args) {
             if (callStaticCharMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallStaticCharMethodA, ref callStaticCharMethod);
+                callStaticCharMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallStaticCharMethodA, ref callStaticCharMethod);
             }
             var res = (char)callStaticCharMethod(Env, clazz, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -455,7 +456,7 @@ namespace org.daisy.jnet {
 
         public bool CallStaticBooleanMethod(jclass clazz,  jmethodID methodID, params JValue[] args) {
             if (callStaticBooleanMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallStaticBooleanMethodA, ref callStaticBooleanMethod);
+                callStaticBooleanMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallStaticBooleanMethodA, ref callStaticBooleanMethod);
             }
             bool res = callStaticBooleanMethod(Env, clazz, methodID, args) != 0;
             CheckJavaExceptionAndThrow();
@@ -464,7 +465,7 @@ namespace org.daisy.jnet {
 
         public sbyte CallStaticByteMethod(jclass clazz,  jmethodID methodID, params JValue[] args) {
             if (callStaticByteMethod == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.CallStaticByteMethodA, ref callStaticByteMethod);
+                callStaticByteMethod = JavaVM.GetDelegateForFunctionPointer(functions.CallStaticByteMethodA, ref callStaticByteMethod);
             }
             sbyte res = callStaticByteMethod(Env, clazz, methodID, args);
             CheckJavaExceptionAndThrow();
@@ -477,7 +478,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewObjectArray(int len, IntPtr classHandle, IntPtr init) {
             if (newObjectArray == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewObjectArray, ref newObjectArray);
+                newObjectArray = JavaVM.GetDelegateForFunctionPointer(functions.NewObjectArray, ref newObjectArray);
             }
 
             IntPtr res = newObjectArray(Env, len, classHandle, init);
@@ -487,7 +488,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewIntArray(int len, IntPtr classHandle) {
             if (newIntArray == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewIntArray, ref newIntArray);
+                newIntArray = JavaVM.GetDelegateForFunctionPointer(functions.NewIntArray, ref newIntArray);
             }
 
             IntPtr res = newIntArray(Env, len);
@@ -499,7 +500,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewLongArray(int len, IntPtr classHandle) {
             if (newLongArray == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewLongArray, ref newLongArray);
+                newLongArray = JavaVM.GetDelegateForFunctionPointer(functions.NewLongArray, ref newLongArray);
             }
 
             IntPtr res = newLongArray(Env, len);
@@ -510,7 +511,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewCharArray(int len, IntPtr classHandle) {
             if (newCharArray == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewCharArray, ref newCharArray);
+                newCharArray = JavaVM.GetDelegateForFunctionPointer(functions.NewCharArray, ref newCharArray);
             }
 
             IntPtr res = newCharArray(Env, len);
@@ -521,7 +522,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewShortArray(int len, IntPtr classHandle) {
             if (newShortArray == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewShortArray, ref newShortArray);
+                newShortArray = JavaVM.GetDelegateForFunctionPointer(functions.NewShortArray, ref newShortArray);
             }
 
             IntPtr res = newShortArray(Env, len);
@@ -533,7 +534,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewDoubleArray(int len, IntPtr classHandle) {
             if (newDoubleArray == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewDoubleArray, ref newDoubleArray);
+                newDoubleArray = JavaVM.GetDelegateForFunctionPointer(functions.NewDoubleArray, ref newDoubleArray);
             }
 
             IntPtr res = newDoubleArray(Env, len);
@@ -544,7 +545,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewFloatArray(int len, IntPtr classHandle) {
             if (newFloatArray == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewFloatArray, ref newFloatArray);
+                newFloatArray = JavaVM.GetDelegateForFunctionPointer(functions.NewFloatArray, ref newFloatArray);
             }
 
             IntPtr res = newFloatArray(Env, len);
@@ -555,7 +556,7 @@ namespace org.daisy.jnet {
 
         public void SetObjectArrayElement(IntPtr array, int index, IntPtr val) {
             if (setObjectArrayElement == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetObjectArrayElement, ref setObjectArrayElement);
+                setObjectArrayElement = JavaVM.GetDelegateForFunctionPointer(functions.SetObjectArrayElement, ref setObjectArrayElement);
             }
 
             setObjectArrayElement(Env, array, index, val);
@@ -565,7 +566,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewByteArray(int len, IntPtr classHandle) {
             if (newByteArray == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewByteArray, ref newByteArray);
+                newByteArray = JavaVM.GetDelegateForFunctionPointer(functions.NewByteArray, ref newByteArray);
             }
 
             IntPtr res = newByteArray(Env, len);
@@ -580,7 +581,7 @@ namespace org.daisy.jnet {
 
         public IntPtr GetObjectField(jobject obj, IntPtr fieldID) {
             if (getObjectField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetObjectField, ref getObjectField);
+                getObjectField = JavaVM.GetDelegateForFunctionPointer(functions.GetObjectField, ref getObjectField);
             }
             IntPtr res = getObjectField(Env, obj, fieldID);
             CheckJavaExceptionAndThrow();
@@ -590,7 +591,7 @@ namespace org.daisy.jnet {
 
         public int GetArrayLength(IntPtr obj) {
             if (getArrayLength == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetArrayLength, ref getArrayLength);
+                getArrayLength = JavaVM.GetDelegateForFunctionPointer(functions.GetArrayLength, ref getArrayLength);
             }
             int len = getArrayLength(Env, obj);
             CheckJavaExceptionAndThrow();
@@ -599,11 +600,11 @@ namespace org.daisy.jnet {
 
         internal jboolean[] GetBooleanArray(IntPtr obj) {
             if (getBooleanArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetBooleanArrayElements, ref getBooleanArrayElements);
+                getBooleanArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.GetBooleanArrayElements, ref getBooleanArrayElements);
             }
 
             if (releaseBooleanArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseBooleanArrayElements, ref releaseBooleanArrayElements);
+                releaseBooleanArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.ReleaseBooleanArrayElements, ref releaseBooleanArrayElements);
             }
             int len = this.GetArrayLength(obj);
 
@@ -623,11 +624,11 @@ namespace org.daisy.jnet {
 
         internal jbyte[] GetByteArray(IntPtr obj) {
             if (getByteArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetByteArrayElements, ref getByteArrayElements);
+                getByteArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.GetByteArrayElements, ref getByteArrayElements);
             }
 
             if (releaseByteArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseByteArrayElements, ref releaseByteArrayElements);
+                releaseByteArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.ReleaseByteArrayElements, ref releaseByteArrayElements);
             }
             int len = this.GetArrayLength(obj);
 
@@ -647,11 +648,11 @@ namespace org.daisy.jnet {
 
         internal jchar[] GetCharArray(IntPtr obj) {
             if (getCharArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetCharArrayElements, ref getCharArrayElements);
+                getCharArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.GetCharArrayElements, ref getCharArrayElements);
             }
 
             if (releaseCharArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseCharArrayElements, ref releaseCharArrayElements);
+                releaseCharArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.ReleaseCharArrayElements, ref releaseCharArrayElements);
             }
             int len = this.GetArrayLength(obj);
 
@@ -671,11 +672,11 @@ namespace org.daisy.jnet {
 
         internal jshort[] GetShortArray(IntPtr obj) {
             if (getShortArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetShortArrayElements, ref getShortArrayElements);
+                getShortArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.GetShortArrayElements, ref getShortArrayElements);
             }
 
             if (releaseShortArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseShortArrayElements, ref releaseShortArrayElements);
+                releaseShortArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.ReleaseShortArrayElements, ref releaseShortArrayElements);
             }
             int len = this.GetArrayLength(obj);
 
@@ -695,11 +696,11 @@ namespace org.daisy.jnet {
 
         public int[] GetIntArray(IntPtr obj) {
             if (getIntArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetIntArrayElements, ref getIntArrayElements);
+                getIntArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.GetIntArrayElements, ref getIntArrayElements);
             }
 
             if (releaseIntArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseIntArrayElements, ref releaseIntArrayElements);
+                releaseIntArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.ReleaseIntArrayElements, ref releaseIntArrayElements);
             }
 
             int len = this.GetArrayLength(obj);
@@ -718,11 +719,11 @@ namespace org.daisy.jnet {
 
         internal jlong[] GetLongArray(IntPtr obj) {
             if (getLongArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetLongArrayElements, ref getLongArrayElements);
+                getLongArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.GetLongArrayElements, ref getLongArrayElements);
             }
 
             if (releaseLongArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseLongArrayElements, ref releaseLongArrayElements);
+                releaseLongArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.ReleaseLongArrayElements, ref releaseLongArrayElements);
             }
             int len = this.GetArrayLength(obj);
 
@@ -742,11 +743,11 @@ namespace org.daisy.jnet {
 
         internal jfloat[] GetFloatArray(IntPtr obj) {
             if (getFloatArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetFloatArrayElements, ref getFloatArrayElements);
+                getFloatArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.GetFloatArrayElements, ref getFloatArrayElements);
             }
 
             if (releaseFloatArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseFloatArrayElements, ref releaseFloatArrayElements);
+                releaseFloatArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.ReleaseFloatArrayElements, ref releaseFloatArrayElements);
             }
             int len = this.GetArrayLength(obj);
 
@@ -766,11 +767,11 @@ namespace org.daisy.jnet {
 
         internal jdouble[] GetDoubleArray(IntPtr obj) {
             if (getDoubleArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetDoubleArrayElements, ref getDoubleArrayElements);
+                getDoubleArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.GetDoubleArrayElements, ref getDoubleArrayElements);
             }
 
             if (releaseDoubleArrayElements == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseDoubleArrayElements, ref releaseDoubleArrayElements);
+                releaseDoubleArrayElements = JavaVM.GetDelegateForFunctionPointer(functions.ReleaseDoubleArrayElements, ref releaseDoubleArrayElements);
             }
             int len = this.GetArrayLength(obj);
 
@@ -790,7 +791,7 @@ namespace org.daisy.jnet {
 
         internal IntPtr[] GetObjectArray(IntPtr obj) {
             if (getObjectArrayElement == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetObjectArrayElement, ref getObjectArrayElement);
+                getObjectArrayElement = JavaVM.GetDelegateForFunctionPointer(functions.GetObjectArrayElement, ref getObjectArrayElement);
             }
 
             int len = this.GetArrayLength(obj);
@@ -806,7 +807,7 @@ namespace org.daisy.jnet {
 
         public bool GetBooleanField(jobject obj, IntPtr fieldID) {
             if (getBooleanField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetBooleanField, ref getBooleanField);
+                getBooleanField = JavaVM.GetDelegateForFunctionPointer(functions.GetBooleanField, ref getBooleanField);
             }
             bool res = getBooleanField(Env, obj, fieldID) != 0;
             CheckJavaExceptionAndThrow();
@@ -815,7 +816,7 @@ namespace org.daisy.jnet {
 
         public sbyte GetByteField(jobject obj, IntPtr fieldID) {
             if (getByteField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetByteField, ref getByteField);
+                getByteField = JavaVM.GetDelegateForFunctionPointer(functions.GetByteField, ref getByteField);
             }
             sbyte res = getByteField(Env, obj, fieldID);
             CheckJavaExceptionAndThrow();
@@ -824,7 +825,7 @@ namespace org.daisy.jnet {
 
         public short GetShortField(jobject obj, IntPtr fieldID) {
             if (getShortField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetShortField, ref getShortField);
+                getShortField = JavaVM.GetDelegateForFunctionPointer(functions.GetShortField, ref getShortField);
             }
             short res = getShortField(Env, obj, fieldID);
             CheckJavaExceptionAndThrow();
@@ -833,7 +834,7 @@ namespace org.daisy.jnet {
 
         public long GetLongField(jobject obj, IntPtr fieldID) {
             if (getLongField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetLongField, ref getLongField);
+                getLongField = JavaVM.GetDelegateForFunctionPointer(functions.GetLongField, ref getLongField);
             }
             long res = getLongField(Env, obj, fieldID);
             CheckJavaExceptionAndThrow();
@@ -842,7 +843,7 @@ namespace org.daisy.jnet {
 
         public int GetIntField(jobject obj, IntPtr fieldID) {
             if (getIntField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetIntField, ref getIntField);
+                getIntField = JavaVM.GetDelegateForFunctionPointer(functions.GetIntField, ref getIntField);
             }
             int res = getIntField(Env, obj, fieldID);
             CheckJavaExceptionAndThrow();
@@ -851,7 +852,7 @@ namespace org.daisy.jnet {
 
         public double GetDoubleField(jobject obj, IntPtr fieldID) {
             if (getDoubleField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetDoubleField, ref getDoubleField);
+                getDoubleField = JavaVM.GetDelegateForFunctionPointer(functions.GetDoubleField, ref getDoubleField);
             }
             double res = getDoubleField(Env, obj, fieldID);
             CheckJavaExceptionAndThrow();
@@ -860,7 +861,7 @@ namespace org.daisy.jnet {
 
         public float GetFloatField(jobject obj, IntPtr fieldID) {
             if (getFloatField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetFloatField, ref getFloatField);
+                getFloatField = JavaVM.GetDelegateForFunctionPointer(functions.GetFloatField, ref getFloatField);
             }
             float res = getFloatField(Env, obj, fieldID);
             CheckJavaExceptionAndThrow();
@@ -869,7 +870,7 @@ namespace org.daisy.jnet {
 
         public char GetCharField(jobject obj, IntPtr fieldID) {
             if (getCharField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetCharField, ref getCharField);
+                getCharField = JavaVM.GetDelegateForFunctionPointer(functions.GetCharField, ref getCharField);
             }
             var res = (char)getCharField(Env, obj, fieldID);
             CheckJavaExceptionAndThrow();
@@ -882,7 +883,7 @@ namespace org.daisy.jnet {
 
         public IntPtr GetStaticObjectField(IntPtr clazz, IntPtr fieldID) {
             if (getStaticObjectField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStaticObjectField, ref getStaticObjectField);
+                getStaticObjectField = JavaVM.GetDelegateForFunctionPointer(functions.GetStaticObjectField, ref getStaticObjectField);
             }
             IntPtr res = getStaticObjectField(Env, clazz, fieldID);
             CheckJavaExceptionAndThrow();
@@ -892,7 +893,7 @@ namespace org.daisy.jnet {
 
         public bool GetStaticBooleanField(IntPtr clazz, IntPtr fieldID) {
             if (getStaticBooleanField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStaticBooleanField, ref getStaticBooleanField);
+                getStaticBooleanField = JavaVM.GetDelegateForFunctionPointer(functions.GetStaticBooleanField, ref getStaticBooleanField);
             }
             bool res = getStaticBooleanField(Env, clazz, fieldID) != 0;
             CheckJavaExceptionAndThrow();
@@ -901,7 +902,7 @@ namespace org.daisy.jnet {
 
         public sbyte GetStaticByteField(IntPtr classHandle, IntPtr fieldID) {
             if (getStaticByteField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStaticByteField, ref getStaticByteField);
+                getStaticByteField = JavaVM.GetDelegateForFunctionPointer(functions.GetStaticByteField, ref getStaticByteField);
             }
             sbyte res = getStaticByteField(Env, classHandle, fieldID);
             CheckJavaExceptionAndThrow();
@@ -910,7 +911,7 @@ namespace org.daisy.jnet {
 
         public short GetStaticShortField(IntPtr classHandle, IntPtr fieldID) {
             if (getStaticShortField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStaticShortField, ref getStaticShortField);
+                getStaticShortField = JavaVM.GetDelegateForFunctionPointer(functions.GetStaticShortField, ref getStaticShortField);
             }
             short res = getStaticShortField(Env, classHandle, fieldID);
             CheckJavaExceptionAndThrow();
@@ -919,7 +920,7 @@ namespace org.daisy.jnet {
 
         public long GetStaticLongField(IntPtr classHandle, IntPtr fieldID) {
             if (getStaticLongField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStaticLongField, ref getStaticLongField);
+                getStaticLongField = JavaVM.GetDelegateForFunctionPointer(functions.GetStaticLongField, ref getStaticLongField);
             }
             long res = getStaticLongField(Env, classHandle, fieldID);
             CheckJavaExceptionAndThrow();
@@ -928,7 +929,7 @@ namespace org.daisy.jnet {
 
         public int GetStaticIntField(IntPtr classHandle, IntPtr fieldID) {
             if (getStaticIntField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStaticIntField, ref getStaticIntField);
+                getStaticIntField = JavaVM.GetDelegateForFunctionPointer(functions.GetStaticIntField, ref getStaticIntField);
             }
             int res = getStaticIntField(Env, classHandle, fieldID);
             CheckJavaExceptionAndThrow();
@@ -937,7 +938,7 @@ namespace org.daisy.jnet {
 
         public double GetStaticDoubleField(IntPtr classHandle, IntPtr fieldID) {
             if (getStaticDoubleField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStaticDoubleField, ref getStaticDoubleField);
+                getStaticDoubleField = JavaVM.GetDelegateForFunctionPointer(functions.GetStaticDoubleField, ref getStaticDoubleField);
             }
             double res = getStaticDoubleField(Env, classHandle, fieldID);
             CheckJavaExceptionAndThrow();
@@ -946,7 +947,7 @@ namespace org.daisy.jnet {
 
         public float GetStaticFloatField(IntPtr classHandle, IntPtr fieldID) {
             if (getStaticFloatField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStaticFloatField, ref getStaticFloatField);
+                getStaticFloatField = JavaVM.GetDelegateForFunctionPointer(functions.GetStaticFloatField, ref getStaticFloatField);
             }
             float res = getStaticFloatField(Env, classHandle, fieldID);
             CheckJavaExceptionAndThrow();
@@ -955,7 +956,7 @@ namespace org.daisy.jnet {
 
         public char GetStaticCharField(IntPtr classHandle, IntPtr fieldID) {
             if (getStaticCharField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStaticCharField, ref getStaticCharField);
+                getStaticCharField = JavaVM.GetDelegateForFunctionPointer(functions.GetStaticCharField, ref getStaticCharField);
             }
             var res = (char)getStaticCharField(Env, classHandle, fieldID);
             CheckJavaExceptionAndThrow();
@@ -968,7 +969,7 @@ namespace org.daisy.jnet {
 
         internal void SetObjectField(jobject obj, IntPtr fieldID, IntPtr value) {
             if (setObjectField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetObjectField, ref setObjectField);
+                setObjectField = JavaVM.GetDelegateForFunctionPointer(functions.SetObjectField, ref setObjectField);
             }
             setObjectField(Env, obj, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -976,7 +977,7 @@ namespace org.daisy.jnet {
 
         internal void SetIntField(jobject obj, IntPtr fieldID, int value) {
             if (setIntField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetIntField, ref setIntField);
+                setIntField = JavaVM.GetDelegateForFunctionPointer(functions.SetIntField, ref setIntField);
             }
             setIntField(Env, obj, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -984,7 +985,7 @@ namespace org.daisy.jnet {
 
         internal void SetBooleanField(jobject obj, IntPtr fieldID, bool value) {
             if (setBooleanField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetBooleanField, ref setBooleanField);
+                setBooleanField = JavaVM.GetDelegateForFunctionPointer(functions.SetBooleanField, ref setBooleanField);
             }
             setBooleanField(Env, obj, fieldID, JavaVM.BooleanToByte(value));
             CheckJavaExceptionAndThrow();
@@ -992,7 +993,7 @@ namespace org.daisy.jnet {
 
         internal void SetByteField(jobject obj, IntPtr fieldID, sbyte value) {
             if (setByteField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetByteField, ref setByteField);
+                setByteField = JavaVM.GetDelegateForFunctionPointer(functions.SetByteField, ref setByteField);
             }
             setByteField(Env, obj, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1000,7 +1001,7 @@ namespace org.daisy.jnet {
 
         internal void SetCharField(jobject obj, IntPtr fieldID, char value) {
             if (setCharField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetCharField, ref setCharField);
+                setCharField = JavaVM.GetDelegateForFunctionPointer(functions.SetCharField, ref setCharField);
             }
             setCharField(Env, obj, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1008,7 +1009,7 @@ namespace org.daisy.jnet {
 
         internal void SetShortField(jobject obj, IntPtr fieldID, short value) {
             if (setShortField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetShortField, ref setShortField);
+                setShortField = JavaVM.GetDelegateForFunctionPointer(functions.SetShortField, ref setShortField);
             }
             setShortField(Env, obj, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1016,7 +1017,7 @@ namespace org.daisy.jnet {
 
         internal void SetLongField(jobject obj, IntPtr fieldID, long value) {
             if (setLongField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetLongField, ref setLongField);
+                setLongField = JavaVM.GetDelegateForFunctionPointer(functions.SetLongField, ref setLongField);
             }
             setLongField(Env, obj, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1024,7 +1025,7 @@ namespace org.daisy.jnet {
 
         internal void SetFloatField(jobject obj, IntPtr fieldID, float value) {
             if (setFloatField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetFloatField, ref setFloatField);
+                setFloatField = JavaVM.GetDelegateForFunctionPointer(functions.SetFloatField, ref setFloatField);
             }
             setFloatField(Env, obj, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1032,7 +1033,7 @@ namespace org.daisy.jnet {
 
         internal void SetDoubleField(jobject obj, IntPtr fieldID, double value) {
             if (setDoubleField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetDoubleField, ref setDoubleField);
+                setDoubleField = JavaVM.GetDelegateForFunctionPointer(functions.SetDoubleField, ref setDoubleField);
             }
             setDoubleField(Env, obj, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1044,7 +1045,7 @@ namespace org.daisy.jnet {
 
         internal void SetStaticObjectField(IntPtr classHandle, IntPtr fieldID, IntPtr value) {
             if (setStaticObjectField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetStaticObjectField, ref setStaticObjectField);
+                setStaticObjectField = JavaVM.GetDelegateForFunctionPointer(functions.SetStaticObjectField, ref setStaticObjectField);
             }
             setStaticObjectField(Env, classHandle, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1052,7 +1053,7 @@ namespace org.daisy.jnet {
 
         internal void SetStaticIntField(IntPtr classHandle, IntPtr fieldID, int value) {
             if (setStaticIntField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetStaticIntField, ref setStaticIntField);
+                setStaticIntField = JavaVM.GetDelegateForFunctionPointer(functions.SetStaticIntField, ref setStaticIntField);
             }
             setStaticIntField(Env, classHandle, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1060,7 +1061,7 @@ namespace org.daisy.jnet {
 
         internal void SetStaticBooleanField(IntPtr classHandle, IntPtr fieldID, bool value) {
             if (setStaticBooleanField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetStaticBooleanField, ref setStaticBooleanField);
+                setStaticBooleanField = JavaVM.GetDelegateForFunctionPointer(functions.SetStaticBooleanField, ref setStaticBooleanField);
             }
             setStaticBooleanField(Env, classHandle, fieldID, JavaVM.BooleanToByte(value));
             CheckJavaExceptionAndThrow();
@@ -1068,7 +1069,7 @@ namespace org.daisy.jnet {
 
         internal void SetStaticByteField(IntPtr classHandle, IntPtr fieldID, sbyte value) {
             if (setStaticByteField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetStaticByteField, ref setStaticByteField);
+                setStaticByteField = JavaVM.GetDelegateForFunctionPointer(functions.SetStaticByteField, ref setStaticByteField);
             }
             setStaticByteField(Env, classHandle, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1076,7 +1077,7 @@ namespace org.daisy.jnet {
 
         internal void SetStaticCharField(IntPtr classHandle, IntPtr fieldID, char value) {
             if (setStaticCharField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetStaticCharField, ref setStaticCharField);
+                setStaticCharField = JavaVM.GetDelegateForFunctionPointer(functions.SetStaticCharField, ref setStaticCharField);
             }
             setStaticCharField(Env, classHandle, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1084,7 +1085,7 @@ namespace org.daisy.jnet {
 
         internal void SetStaticShortField(IntPtr classHandle, IntPtr fieldID, short value) {
             if (setStaticShortField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetStaticShortField, ref setStaticShortField);
+                setStaticShortField = JavaVM.GetDelegateForFunctionPointer(functions.SetStaticShortField, ref setStaticShortField);
             }
             setStaticShortField(Env, classHandle, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1092,7 +1093,7 @@ namespace org.daisy.jnet {
 
         internal void SetStaticLongField(IntPtr classHandle, IntPtr fieldID, long value) {
             if (setStaticLongField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetStaticLongField, ref setStaticLongField);
+                setStaticLongField = JavaVM.GetDelegateForFunctionPointer(functions.SetStaticLongField, ref setStaticLongField);
             }
             setStaticLongField(Env, classHandle, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1100,7 +1101,7 @@ namespace org.daisy.jnet {
 
         internal void SetStaticFloatField(IntPtr classHandle, IntPtr fieldID, float value) {
             if (setStaticFloatField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetStaticFloatField, ref setStaticFloatField);
+                setStaticFloatField = JavaVM.GetDelegateForFunctionPointer(functions.SetStaticFloatField, ref setStaticFloatField);
             }
             setStaticFloatField(Env, classHandle, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1108,7 +1109,7 @@ namespace org.daisy.jnet {
 
         internal void SetStaticDoubleField(IntPtr classHandle, IntPtr fieldID, double value) {
             if (setStaticDoubleField == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.SetStaticDoubleField, ref setStaticDoubleField);
+                setStaticDoubleField = JavaVM.GetDelegateForFunctionPointer(functions.SetStaticDoubleField, ref setStaticDoubleField);
             }
             setStaticDoubleField(Env, classHandle, fieldID, value);
             CheckJavaExceptionAndThrow();
@@ -1120,7 +1121,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewString(String unicode, int len) {
             if (newString == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewString, ref newString);
+                newString = JavaVM.GetDelegateForFunctionPointer(functions.NewString, ref newString);
             }
             IntPtr res = newString(Env, unicode, len);
             CheckJavaExceptionAndThrow();
@@ -1129,7 +1130,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewStringUFT(IntPtr UFT) {
             if (newStringUTF == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewStringUTF, ref newStringUTF);
+                newStringUTF = JavaVM.GetDelegateForFunctionPointer(functions.NewStringUTF, ref newStringUTF);
             }
             IntPtr res = newStringUTF(Env, UFT);
             CheckJavaExceptionAndThrow();
@@ -1138,7 +1139,7 @@ namespace org.daisy.jnet {
 
         internal IntPtr GetStringChars(IntPtr JStr, byte* b) {
             if (getStringChars == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStringChars, ref getStringChars);
+                getStringChars = JavaVM.GetDelegateForFunctionPointer(functions.GetStringChars, ref getStringChars);
             }
             IntPtr res = getStringChars(Env, JStr, b);
             CheckJavaExceptionAndThrow();
@@ -1147,7 +1148,7 @@ namespace org.daisy.jnet {
 
         internal void ReleaseStringChars(IntPtr JStr, IntPtr chars) {
             if (releaseStringChars == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ReleaseStringChars, ref releaseStringChars);
+                releaseStringChars = JavaVM.GetDelegateForFunctionPointer(functions.ReleaseStringChars, ref releaseStringChars);
             }
             releaseStringChars(Env, JStr, chars);
             CheckJavaExceptionAndThrow();
@@ -1175,7 +1176,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewDirectByteBuffer(IntPtr address, long capacity) {
             if (newDirectByteBuffer == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewDirectByteBuffer, ref newDirectByteBuffer);
+                newDirectByteBuffer = JavaVM.GetDelegateForFunctionPointer(functions.NewDirectByteBuffer, ref newDirectByteBuffer);
             }
             IntPtr res = newDirectByteBuffer.Invoke(Env, address, capacity);
             CheckJavaExceptionAndThrow();
@@ -1186,7 +1187,7 @@ namespace org.daisy.jnet {
 
         public IntPtr GetDirectBufferAddress(IntPtr buf) {
             if (getDirectBufferAddress == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetDirectBufferAddress, ref getDirectBufferAddress);
+                getDirectBufferAddress = JavaVM.GetDelegateForFunctionPointer(functions.GetDirectBufferAddress, ref getDirectBufferAddress);
             }
             IntPtr res = getDirectBufferAddress.Invoke(Env, buf);
             CheckJavaExceptionAndThrow();
@@ -1195,7 +1196,7 @@ namespace org.daisy.jnet {
 
         public long GetDirectBufferCapacity(IntPtr buf) {
             if (getDirectBufferCapacity == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetDirectBufferCapacity, ref getDirectBufferCapacity);
+                getDirectBufferCapacity = JavaVM.GetDelegateForFunctionPointer(functions.GetDirectBufferCapacity, ref getDirectBufferCapacity);
             }
             long res = getDirectBufferCapacity.Invoke(Env, buf);
             CheckJavaExceptionAndThrow();
@@ -1208,7 +1209,7 @@ namespace org.daisy.jnet {
 
         public IntPtr NewGlobalRef(IntPtr objectHandle) {
             if (newGlobalRef == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewGlobalRef, ref newGlobalRef);
+                newGlobalRef = JavaVM.GetDelegateForFunctionPointer(functions.NewGlobalRef, ref newGlobalRef);
             }
             if (objectHandle != null) {
                 IntPtr res = newGlobalRef(Env, objectHandle);
@@ -1218,7 +1219,7 @@ namespace org.daisy.jnet {
 
         internal IntPtr NewLocalRef(IntPtr objectHandle) {
             if (newLocalRef == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.NewLocalRef, ref newLocalRef);
+                newLocalRef = JavaVM.GetDelegateForFunctionPointer(functions.NewLocalRef, ref newLocalRef);
             }
             if (objectHandle != null) {
                 IntPtr res = newLocalRef(Env, objectHandle);
@@ -1228,7 +1229,7 @@ namespace org.daisy.jnet {
 
         internal IntPtr PopLocalFrame(IntPtr result) {
             if (popLocalFrame == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.PopLocalFrame, ref popLocalFrame);
+                popLocalFrame = JavaVM.GetDelegateForFunctionPointer(functions.PopLocalFrame, ref popLocalFrame);
             }
             IntPtr res = popLocalFrame(Env, result);
             CheckJavaExceptionAndThrow();
@@ -1237,7 +1238,7 @@ namespace org.daisy.jnet {
 
         internal int PushLocalFrame(int capacity) {
             if (pushLocalFrame == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.PushLocalFrame, ref pushLocalFrame);
+                pushLocalFrame = JavaVM.GetDelegateForFunctionPointer(functions.PushLocalFrame, ref pushLocalFrame);
             }
             int res = pushLocalFrame(Env, capacity);
             CheckJavaExceptionAndThrow();
@@ -1246,7 +1247,7 @@ namespace org.daisy.jnet {
 
         internal int EnsureLocalCapacity(int capacity) {
             if (ensureLocalCapacity == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.EnsureLocalCapacity, ref ensureLocalCapacity);
+                ensureLocalCapacity = JavaVM.GetDelegateForFunctionPointer(functions.EnsureLocalCapacity, ref ensureLocalCapacity);
             }
             int res = ensureLocalCapacity(Env, capacity);
             CheckJavaExceptionAndThrow();
@@ -1255,7 +1256,7 @@ namespace org.daisy.jnet {
 
         internal void DeleteGlobalRef(IntPtr objectHandle) {
             if (deleteGlobalRef == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.DeleteGlobalRef, ref deleteGlobalRef);
+                deleteGlobalRef = JavaVM.GetDelegateForFunctionPointer(functions.DeleteGlobalRef, ref deleteGlobalRef);
             }
             if (objectHandle != null) {
                 deleteGlobalRef(Env, objectHandle);
@@ -1264,7 +1265,7 @@ namespace org.daisy.jnet {
 
         internal void DeleteLocalRef(IntPtr objectHandle) {
             if (deleteLocalRef == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.DeleteLocalRef, ref deleteLocalRef);
+                deleteLocalRef = JavaVM.GetDelegateForFunctionPointer(functions.DeleteLocalRef, ref deleteLocalRef);
             }
             if (objectHandle != null) {
                 deleteLocalRef(Env, objectHandle);
@@ -1277,7 +1278,7 @@ namespace org.daisy.jnet {
 
         public jthrowable ExceptionOccurred() {
             if (exceptionOccurred == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ExceptionOccurred, ref exceptionOccurred);
+                exceptionOccurred = JavaVM.GetDelegateForFunctionPointer(functions.ExceptionOccurred, ref exceptionOccurred);
             }
             IntPtr res = exceptionOccurred(Env);
 
@@ -1286,28 +1287,28 @@ namespace org.daisy.jnet {
 
         public void FatalError(string message) {
             if (fatalError == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.FatalError, ref fatalError);
+                fatalError = JavaVM.GetDelegateForFunctionPointer(functions.FatalError, ref fatalError);
             }
             fatalError(Env, Marshal.StringToHGlobalUni(message));
         }
 
         public void ExceptionClear() {
             if (exceptionClear == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ExceptionClear, ref exceptionClear);
+                exceptionClear = JavaVM.GetDelegateForFunctionPointer(functions.ExceptionClear, ref exceptionClear);
             }
             exceptionClear(Env);
         }
 
         public void ExceptionDescribe() {
             if (exceptionDescribe == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ExceptionDescribe, ref exceptionDescribe);
+                exceptionDescribe = JavaVM.GetDelegateForFunctionPointer(functions.ExceptionDescribe, ref exceptionDescribe);
             }
             exceptionDescribe(Env);
         }
 
         internal void Throw(IntPtr objectHandle) {
             if (_throw == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.Throw, ref _throw);
+                _throw = JavaVM.GetDelegateForFunctionPointer(functions.Throw, ref _throw);
             }
             int iResult = _throw(Env, objectHandle);
             if (iResult != JNIReturnValue.JNI_OK) {
@@ -1317,7 +1318,7 @@ namespace org.daisy.jnet {
 
         public void ThrowNew(IntPtr classHandle, string message) {
             if (throwNew == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ThrowNew, ref throwNew);
+                throwNew = JavaVM.GetDelegateForFunctionPointer(functions.ThrowNew, ref throwNew);
             }
             IntPtr uni = Marshal.StringToHGlobalUni(message);
             int iResult = throwNew(Env, classHandle, uni);
@@ -1355,7 +1356,7 @@ namespace org.daisy.jnet {
         /// <returns></returns>
         public unsafe bool CheckJavaExceptionAndThrow() {
             if (exceptionCheck == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ExceptionCheck, ref exceptionCheck);
+                exceptionCheck = JavaVM.GetDelegateForFunctionPointer(functions.ExceptionCheck, ref exceptionCheck);
             }
             if (exceptionCheck(Env) != 0) {
                 jthrowable occurred = ExceptionOccurred();
@@ -1419,8 +1420,7 @@ namespace org.daisy.jnet {
 
         internal void ReleasePrimitiveArrayCritical(IntPtr array, void* carray, int mode) {
             if (releasePrimitiveArrayCritical == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.ReleasePrimitiveArrayCritical,
-                                                     ref releasePrimitiveArrayCritical);
+                releasePrimitiveArrayCritical = JavaVM.GetDelegateForFunctionPointer(functions.ReleasePrimitiveArrayCritical, ref releasePrimitiveArrayCritical);
             }
             releasePrimitiveArrayCritical(Env, array, carray, mode);
             CheckJavaExceptionAndThrow();
@@ -1428,7 +1428,7 @@ namespace org.daisy.jnet {
 
         internal void* GetPrimitiveArrayCritical(IntPtr array, byte* isCopy) {
             if (getPrimitiveArrayCritical == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetPrimitiveArrayCritical, ref getPrimitiveArrayCritical);
+                getPrimitiveArrayCritical = JavaVM.GetDelegateForFunctionPointer(functions.GetPrimitiveArrayCritical, ref getPrimitiveArrayCritical);
             }
             var res = getPrimitiveArrayCritical(Env, array, isCopy);
             CheckJavaExceptionAndThrow();
@@ -1437,7 +1437,7 @@ namespace org.daisy.jnet {
 
         public IntPtr GetStringCritical(jstring _string, jboolean* isCopy) {
             if (getStringCritical == null) {
-                JavaVM.GetDelegateForFunctionPointer(functions.GetStringCritical, ref getStringCritical);
+                getStringCritical = JavaVM.GetDelegateForFunctionPointer(functions.GetStringCritical, ref getStringCritical);
             }
             IntPtr res = getStringCritical.Invoke(Env, _string, isCopy);
             CheckJavaExceptionAndThrow();
