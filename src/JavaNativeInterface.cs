@@ -8,6 +8,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -290,6 +291,129 @@ namespace org.daisy.jnet {
                 }
 
             } 
+        }
+
+        /// <summary>
+        /// Make a java ArrayList from a Csharp list of item
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="list"></param>
+        /// <returns></returns>
+        public IntPtr MakeArrayListFrom(List<object> list)
+        {
+            IntPtr javaListClass = GetJavaClass("java/util/ArrayList");
+
+            IntPtr newList = NewObject(javaListClass);
+            foreach(object item in list)
+            {
+                bool tempBool = CallMethod<bool>(
+                    javaListClass,
+                    newList,
+                    "add",
+                    "(Ljava/lang/Object;)Z",
+                    ConvertRawObjectToJavaWrapper(item)
+                );
+            }
+
+            return newList;
+        }
+
+        /// <summary>
+        /// Convert raw type object (int, bool, float, string, list and dictionnary)
+        /// to java wrapper object (Integer, Boolean, Float, String, ArrayList and HashMap).
+        /// Can be needed for java Map or List.
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <returns></returns>
+        public IntPtr ConvertRawObjectToJavaWrapper(object obj)
+        {
+            
+            if(obj is string)
+            {
+                IntPtr javaClass = GetJavaClass("java/lang/String");
+                return NewObject(javaClass, "(Ljava/lang/String;)V", (string)obj);
+            } else if(obj is int)
+            {
+                IntPtr javaClass = GetJavaClass("java/lang/Integer");
+                return CallMethod<IntPtr>(
+                    javaClass,
+                    IntPtr.Zero,
+                    "valueOf",
+                    "(I)Ljava/lang/Integer;",
+                    (int)obj
+                );
+            }
+            else if (obj is short)
+            {
+                IntPtr javaClass = GetJavaClass("java/lang/Short");
+                return CallMethod<IntPtr>(
+                    javaClass,
+                    IntPtr.Zero,
+                    "valueOf",
+                    "(S)Ljava/lang/Short;",
+                    (short)obj
+                );
+            }
+            else if (obj is bool)
+            {
+                IntPtr javaClass = GetJavaClass("java/lang/Boolean");
+                return CallMethod<IntPtr>(
+                    javaClass,
+                    IntPtr.Zero,
+                    "valueOf",
+                    "(Z)Ljava/lang/Boolean;",
+                    (bool)obj
+                );
+            }
+            else if (obj is float)
+            {
+                IntPtr javaClass = GetJavaClass("java/lang/Float");
+                return CallMethod<IntPtr>(
+                    javaClass,
+                    IntPtr.Zero,
+                    "valueOf",
+                    "(F)Ljava/lang/Float;",
+                    (float)obj
+                );
+            }
+            else if (obj is double)
+            {
+                IntPtr javaClass = GetJavaClass("java/lang/Double");
+                return CallMethod<IntPtr>(
+                    javaClass,
+                    IntPtr.Zero,
+                    "valueOf",
+                    "(D)Ljava/lang/Double;",
+                    (double)obj
+                );
+            } else if (obj is List<object>)
+            {
+                return MakeArrayListFrom((List<object>)obj);
+            } else if (obj is Dictionary<string, object>)
+            {
+                return MakeHashMapFrom((Dictionary<string, object>)obj);
+            }
+            return IntPtr.Zero;
+        }
+
+        public IntPtr MakeHashMapFrom(Dictionary<string, object> map)
+        {
+            IntPtr javaMapClass = GetJavaClass("java/util/HashMap");
+
+            IntPtr newMap = NewObject(javaMapClass);
+            foreach (KeyValuePair<string,object> item in map)
+            {
+                CallMethod<IntPtr>(
+                    javaMapClass,
+                    IntPtr.Zero,
+                    "put",
+                    "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                    item.Key,
+                    ConvertRawObjectToJavaWrapper(item.Value)
+                );
+            }
+
+            return newMap;
         }
 
         /// <summary>
@@ -1038,10 +1162,12 @@ namespace org.daisy.jnet {
                 }
 
                 startIndex += (paramSig.Length - (paramSig.IndexOf("[", StringComparison.Ordinal) + 1));
-
-                if (param[i] is string) {
+                // changed 
+                if (param[i] is string)
+                {
                     // also adding Object test for generics
-                    if (!(paramSig.Equals("Ljava/lang/String") || paramSig.Equals("Ljava/lang/Object"))) {
+                    if (!(paramSig.Equals("Ljava/lang/String") || paramSig.Equals("Ljava/lang/Object")))
+                    {
                         throw new Exception("Signature (" + paramSig + ") does not match parameter value (" + param[i].GetType().ToString() + ").");
                     }
                     if (env == null)
@@ -1052,15 +1178,21 @@ namespace org.daisy.jnet {
                     {
                         retval[i] = new JValue() { L = env.NewString(param[i].ToString(), param[i].ToString().Length) };
                     }
-                } else if (param[i] == null) {
+                }
+                else if (param[i] == null)
+                {
                     retval[i] = new JValue(); // Just leave as default value
-                } else if (paramSig.StartsWith("[")) {
+                }
+                else if (paramSig.StartsWith("["))
+                {
                     retval[i] = ProcessArrayType(javaClass, paramSig, param[i]);
-                } else if (param[i] is IntPtr) { // object pointer
+                }
+                else if (param[i] is IntPtr)
+                {   // java object pointer
                     retval[i] = new JValue() { L = (IntPtr)param[i] };
-                } else {
+                }else {
                     retval[i] = new JValue();
-                    FieldInfo? paramField = retval[i].GetType().GetFields(BindingFlags.Public | BindingFlags.Instance).AsQueryable().FirstOrDefault(a => a.Name.ToUpper().Equals(paramSig));
+                    FieldInfo paramField = retval[i].GetType().GetFields(BindingFlags.Public | BindingFlags.Instance).AsQueryable().FirstOrDefault(a => a.Name.ToUpper().Equals(paramSig));
                     if ((paramField != null) && ((param[i].GetType() == paramField.FieldType) || ((paramField.FieldType == typeof(bool)) && (param[i] is byte)))) {
                         paramField.SetValueDirect(__makeref(retval[i]), paramField.FieldType == typeof(bool)  // this is an undocumented feature to set struct fields via reflection
                                                       ? JavaVM.BooleanToByte((bool)param[i])
