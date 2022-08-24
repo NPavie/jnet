@@ -86,7 +86,7 @@ namespace org.daisy.jnet {
                         Console.Error.WriteLine("Falling back to standard JRE search, starting near the current assembly.");
                     }
                 }
-                
+
             } 
             
             if (JavaNativeInterface.__jvmDllPath.Length == 0) {
@@ -1229,13 +1229,13 @@ namespace org.daisy.jnet {
                     retval[i] = new JValue() { L = (IntPtr)param[i] };
                 }else {
                     retval[i] = new JValue();
-                    
+
                     FieldInfo paramField = retval[i].GetType().GetFields(BindingFlags.Public | BindingFlags.Instance).AsQueryable().FirstOrDefault(a => a.Name.ToUpper().Equals(paramSig));
-                    if ((paramField != null) 
+                    if ((paramField != null)
                         && (
-                            (param[i].GetType() == paramField.FieldType) 
+                            (param[i].GetType() == paramField.FieldType)
                             || (
-                                (paramField.FieldType == typeof(byte) || paramField.FieldType == typeof(bool)) 
+                                (paramField.FieldType == typeof(byte) || paramField.FieldType == typeof(bool))
                                 && (param[i] is byte || param[i] is bool)
                             )
                         )
