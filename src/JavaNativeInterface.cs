@@ -6,6 +6,7 @@
 // http://download.oracle.com/javase/6/docs/technotes/guides/jni/spec/functions.html
 ////////////////////////////////////////////////////////////////////////////////////////////////
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -54,7 +55,7 @@ namespace org.daisy.jnet {
         /// - Under the JAVA_HOME folder<br/>
         /// - for windows OS, also search in the user registry
         /// </summary>
-        /// <param name="customJREPath">Path of the jvm.dll file</param>
+        /// <param name="customJREPath">Path of the jvm lib or of the directory to search jvm lib file</param>
         public JavaNativeInterface(List<string> options, string customJREPath = "", bool AddToExistingJVM = false, JNIVersion targetVersion = JNIVersion.JNI_VERSION_10) {
             // os specific jvm lib names, default for windows 
             string libraryName = "jvm.dll";
@@ -62,20 +63,30 @@ namespace org.daisy.jnet {
             
 
             if (customJREPath.Length > 0) {
-                if (!Directory.Exists(customJREPath)) {
-                    Console.Error.WriteLine($"The jre path provided was not found : {customJREPath}");
-                    Console.Error.WriteLine("Falling back to standard JRE search, starting near the current assembly.");
+                if (customJREPath.EndsWith(libraryName) && File.Exists(customJREPath))
+                {
+                    JavaNativeInterface.__jvmDllPath = customJREPath;
                 }
-                string[] searchResult = Directory.GetFiles(customJREPath, libraryName, SearchOption.AllDirectories);
+                else
+                {
+                    if (!Directory.Exists(customJREPath))
+                    {
+                        Console.Error.WriteLine($"The jre path provided was not found : {customJREPath}");
+                        Console.Error.WriteLine("Falling back to standard JRE search, starting near the current assembly.");
+                    }
+                    string[] searchResult = Directory.GetFiles(customJREPath, libraryName, SearchOption.AllDirectories);
 
-                if (searchResult.Length > 0)
-                {
-                    JavaNativeInterface.__jvmDllPath = searchResult[0];
-                } else
-                {
-                    Console.Error.WriteLine($"the jre path provided ({customJREPath}) does not contains a {libraryName} file");
-                    Console.Error.WriteLine("Falling back to standard JRE search, starting near the current assembly.");
+                    if (searchResult.Length > 0)
+                    {
+                        JavaNativeInterface.__jvmDllPath = searchResult[0];
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"the jre path provided ({customJREPath}) does not contains a {libraryName} file");
+                        Console.Error.WriteLine("Falling back to standard JRE search, starting near the current assembly.");
+                    }
                 }
+                
             } 
             
             if (JavaNativeInterface.__jvmDllPath.Length == 0) {
@@ -293,46 +304,42 @@ namespace org.daisy.jnet {
             } 
         }
 
-        /// <summary>
-        /// Make a java ArrayList from a Csharp list of item
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="list"></param>
-        /// <returns></returns>
-        public IntPtr MakeArrayListFrom(List<object> list)
-        {
-            IntPtr javaListClass = GetJavaClass("java/util/ArrayList");
 
-            IntPtr newList = NewObject(javaListClass);
-            foreach(object item in list)
-            {
-                bool tempBool = CallMethod<bool>(
-                    javaListClass,
-                    newList,
-                    "add",
-                    "(Ljava/lang/Object;)Z",
-                    ConvertRawObjectToJavaWrapper(item)
-                );
-            }
-
-            return newList;
-        }
 
         /// <summary>
-        /// Convert raw type object (int, bool, float, string, list and dictionnary)
-        /// to java wrapper object (Integer, Boolean, Float, String, ArrayList and HashMap).
-        /// Can be needed for java Map or List.
+        /// Helper function to create a new java wrapper object from a C# object based on the input object type. <br/>
+        /// The following object types are mapped to the indicated java wrapper :<br/>
+        /// - bool : java/lang/Boolean <br/>
+        /// - short : java/lang/Short <br/>
+        /// - int : java/lang/Integer <br/>
+        /// - long : java/lang/Long <br/>
+        /// - float : java/lang/Float <br/>
+        /// - double : java/lang/Double <br/>
+        /// - string : java/lang/String <br/>
+        /// - List : java/util/ArrayList <br/>
+        /// - Dictionnary(string,object) : java/util/HashMap
         /// </summary>
-        /// <param name="obj"></param>
-        /// <returns></returns>
-        public IntPtr ConvertRawObjectToJavaWrapper(object obj)
+        /// <param name="obj">Object of expected type : bool, short, int, float, double, string, List or Dictionnary (with string key)</param>
+        /// <returns>IntPtr.Zero if the object is an instanced of a non-supported type, else a java pointer to a wrapper object.</returns>
+        public IntPtr NewJavaWrapperObject(object obj)
         {
-            
             if(obj is string)
             {
                 IntPtr javaClass = GetJavaClass("java/lang/String");
                 return NewObject(javaClass, "(Ljava/lang/String;)V", (string)obj);
-            } else if(obj is int)
+            }
+            else if (obj is long)
+            {
+                IntPtr javaClass = GetJavaClass("java/lang/Long");
+                return CallMethod<IntPtr>(
+                    javaClass,
+                    IntPtr.Zero,
+                    "valueOf",
+                    "(J)Ljava/lang/Long;",
+                    (long)obj
+                );
+            }
+            else if(obj is int)
             {
                 IntPtr javaClass = GetJavaClass("java/lang/Integer");
                 return CallMethod<IntPtr>(
@@ -386,30 +393,60 @@ namespace org.daisy.jnet {
                     "(D)Ljava/lang/Double;",
                     (double)obj
                 );
-            } else if (obj is List<object>)
+            }
+            else if (obj is IList) // Generic list interface
             {
-                return MakeArrayListFrom((List<object>)obj);
-            } else if (obj is Dictionary<string, object>)
+                return NewArrayListFrom((IList)obj);
+            }
+            else if (obj is IDictionary) // Generic dictionnary interface
             {
-                return MakeHashMapFrom((Dictionary<string, object>)obj);
+                return NewHashMapFrom((IDictionary)obj);
             }
             return IntPtr.Zero;
         }
 
-        public IntPtr MakeHashMapFrom(Dictionary<string, object> map)
+        /// <summary>
+        /// Make a java ArrayList from a Csharp list of item
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="list"></param>
+        /// <returns></returns>
+        public IntPtr NewArrayListFrom(IList list)
+        {
+            IntPtr javaListClass = GetJavaClass("java/util/ArrayList");
+
+            IntPtr newList = NewObject(javaListClass);
+            foreach (object item in list)
+            {
+                bool tempBool = CallMethod<bool>(
+                    javaListClass,
+                    newList,
+                    "add",
+                    "(Ljava/lang/Object;)Z",
+                    NewJavaWrapperObject(item)
+                );
+            }
+
+            return newList;
+        }
+
+        public IntPtr NewHashMapFrom(IDictionary map)
         {
             IntPtr javaMapClass = GetJavaClass("java/util/HashMap");
-
             IntPtr newMap = NewObject(javaMapClass);
-            foreach (KeyValuePair<string,object> item in map)
+            // Not optimal but it seems
+            // there is not a generic KeyValuePair interface available
+            // But i can go through keys and retrieve values from them like this
+            foreach (object key in map.Keys)
             {
+                object value = map[key];
                 CallMethod<IntPtr>(
                     javaMapClass,
-                    IntPtr.Zero,
+                    newMap,
                     "put",
                     "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-                    item.Key,
-                    ConvertRawObjectToJavaWrapper(item.Value)
+                    NewJavaWrapperObject(key),
+                    NewJavaWrapperObject(value)
                 );
             }
 
@@ -1192,11 +1229,23 @@ namespace org.daisy.jnet {
                     retval[i] = new JValue() { L = (IntPtr)param[i] };
                 }else {
                     retval[i] = new JValue();
+                    
                     FieldInfo paramField = retval[i].GetType().GetFields(BindingFlags.Public | BindingFlags.Instance).AsQueryable().FirstOrDefault(a => a.Name.ToUpper().Equals(paramSig));
-                    if ((paramField != null) && ((param[i].GetType() == paramField.FieldType) || ((paramField.FieldType == typeof(bool)) && (param[i] is byte)))) {
-                        paramField.SetValueDirect(__makeref(retval[i]), paramField.FieldType == typeof(bool)  // this is an undocumented feature to set struct fields via reflection
-                                                      ? JavaVM.BooleanToByte((bool)param[i])
-                                                      : param[i]);
+                    if ((paramField != null) 
+                        && (
+                            (param[i].GetType() == paramField.FieldType) 
+                            || (
+                                (paramField.FieldType == typeof(byte) || paramField.FieldType == typeof(bool)) 
+                                && (param[i] is byte || param[i] is bool)
+                            )
+                        )
+                    ) {
+                        paramField.SetValueDirect(
+                            __makeref(retval[i]),
+                             (paramField.FieldType == typeof(byte) || paramField.FieldType == typeof(bool))   // this is an undocumented feature to set struct fields via reflection
+                                ? JavaVM.BooleanToByte((bool)param[i])
+                                : param[i]
+                        );
                     } else throw new Exception("Signature (" + paramSig + ") does not match parameter value (" + param[i].GetType().ToString() + ").");
                 }
             }
