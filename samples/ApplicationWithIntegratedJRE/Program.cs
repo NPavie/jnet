@@ -17,17 +17,16 @@ namespace ApplicationWithIntegratedJRE {
             UriBuilder uri = new UriBuilder(codeBase);
             string workingDir = Path.GetDirectoryName(Uri.UnescapeDataString(uri.Path)) + Path.DirectorySeparatorChar;
 
-            // Instantiate the JNI interface assembly
-            JavaNativeInterface jni = new JavaNativeInterface();
+            
             List<string> options = new List<string>();
 
             // Setting the class path to the jar that containes the classes to use
             options.Add("-Djava.class.path="+workingDir + "target\\SampleJavaAppWithJRE-0.0.1-SNAPSHOT.jar");
             // If your jar need other jars as dependencies, you may need to add them in the classpath :
             // + ";" + workingDir + "target\\dependency.jar"); 
-
-            // Load a new JVM
-            jni.LoadVM(options, false);
+            
+            // Instantiate the JNI interface assembly
+            JavaNativeInterface jni = new JavaNativeInterface(options);
             try {
                 IntPtr SampleApplicationClass = jni.GetJavaClass("org/daisy/jnet/SampleApplication");
 
@@ -35,15 +34,15 @@ namespace ApplicationWithIntegratedJRE {
                 string testString = jni.CallMethod<string>(SampleApplicationClass, SampleApplicationObject, "getTestString", "()Ljava/lang/String;");
                 Console.WriteLine(testString);
 
-                SampleApplicationObject = jni.NewObject(SampleApplicationClass, "(Ljava/lang/String;)V", "I'm a string sent from C#");
+                SampleApplicationObject = jni.NewObject(SampleApplicationClass, "(Ljava/lang/String;)V", "I'm a string sent from C# 日本");
                 testString = jni.CallMethod<string>(SampleApplicationClass, SampleApplicationObject, "getTestString", "()Ljava/lang/String;");
                 Console.WriteLine(testString);
 
-                IntPtr DefaultPackageSampleClass = IntPtr.Zero;
-                IntPtr DefaultPackageSampleObject = jni.NewObject(DefaultPackageSampleClass);
+                //IntPtr DefaultPackageSampleClass = IntPtr.Zero;
+                //IntPtr DefaultPackageSampleObject = jni.NewObject(DefaultPackageSampleClass);
 
-                testString = jni.CallMethod<string>(DefaultPackageSampleClass, DefaultPackageSampleObject, "getExecutablePath", "()Ljava/lang/String;");
-                Console.WriteLine(testString);
+                //testString = jni.CallMethod<string>(DefaultPackageSampleClass, DefaultPackageSampleObject, "getExecutablePath", "()Ljava/lang/String;");
+                //Console.WriteLine(testString);
 
 
             } catch (Exception e) {

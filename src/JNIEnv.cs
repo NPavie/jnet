@@ -1119,20 +1119,21 @@ namespace org.daisy.jnet {
 
         #region string methods
 
-        public IntPtr NewString(String unicode, int len) {
+        public IntPtr NewString(string unicode, int len) {
             if (newString == null) {
                 newString = JavaVM.GetDelegateForFunctionPointer(functions.NewString, ref newString);
             }
+            // TODO : 
             IntPtr res = newString(Env, unicode, len);
             CheckJavaExceptionAndThrow();
             return res;
         }
 
-        public IntPtr NewStringUFT(IntPtr UFT) {
+        public IntPtr NewStringUTF(IntPtr UTF) {
             if (newStringUTF == null) {
                 newStringUTF = JavaVM.GetDelegateForFunctionPointer(functions.NewStringUTF, ref newStringUTF);
             }
-            IntPtr res = newStringUTF(Env, UFT);
+            IntPtr res = newStringUTF(Env, UTF);
             CheckJavaExceptionAndThrow();
             return res;
         }
@@ -1386,6 +1387,24 @@ namespace org.daisy.jnet {
                         exceptionStack.Push(JStringToString(causeString));
                         cause = CallObjectMethod(cause, GetThrowableCause, new JValue() { });
                     }
+                   
+                    // No cause found
+                    if(exceptionStack.Count == 1)
+                    {
+                        // Testing stack trace
+                        jmethodID GetStackTrace = GetMethodID(ThrowableClass, "getStackTrace", "()[Ljava/lang/StackTraceElement;");
+                        jclass StackTraceElementClass = this.FindClass("java/lang/StackTraceElement");
+                        jmethodID StackTraceElementToString = GetMethodID(StackTraceElementClass, "toString", "()Ljava/lang/String;");
+
+                        jobject stackTraceArrayObj = CallObjectMethod(occurred, GetStackTrace, new JValue() { });
+                        jobject[] stackTrace = GetObjectArray(stackTraceArrayObj);
+                        foreach(jobject stackTraceElement in stackTrace)
+                        {
+                            jstring causeString = CallObjectMethod(stackTraceElement, StackTraceElementToString, new JValue() { });
+                            exceptionStack.Push(JStringToString(causeString));
+                        }
+                    }
+
                     Exception current = null;
                     while (exceptionStack.Count > 0) {
                         current = new Exception(exceptionStack.Pop(), current);

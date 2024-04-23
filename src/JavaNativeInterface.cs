@@ -12,6 +12,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace org.daisy.jnet {
 
@@ -34,11 +35,15 @@ namespace org.daisy.jnet {
         // Classe pointer found by class names (cashing pointers to limit jni call)
         private readonly Dictionary<string, IntPtr> usedClasses = new Dictionary<string, IntPtr>();
 
+        private readonly Dictionary<KeyValuePair<IntPtr,string> , IntPtr> usedMethods = new Dictionary<KeyValuePair<IntPtr, string>, IntPtr>();
+
         // Currently instantiated object, for futur disposal
-        private readonly List<IntPtr> usedObject = new List<IntPtr>();
+        private readonly List<IntPtr> usedObjects = new List<IntPtr>();
 
         private JavaVM jvm;
         private JNIEnv env;
+
+        private bool loaded = false;
 
         /// <summary>
         /// Original JNI environment
@@ -49,14 +54,18 @@ namespace org.daisy.jnet {
 
 
         /// <summary>
-        /// Load the JNI. <br/>
+        /// Load the jni and connect to the jvm <br/>
         /// If no custom jre path is given, search the jvm library in the given order :<br/>
         /// - Near the current assembly<br/>
         /// - Under the JAVA_HOME folder<br/>
         /// - for windows OS, also search in the user registry
         /// </summary>
+        /// <param name="options">List of options to be passed while loading the jvm</param>
         /// <param name="customJREPath">Path of the jvm lib or of the directory to search jvm lib file</param>
-        public JavaNativeInterface(List<string> options, string customJREPath = "", bool AddToExistingJVM = false, JNIVersion targetVersion = JNIVersion.JNI_VERSION_10) {
+        /// <param name="AddToExistingJVM"></param>
+        /// <param name="targetVersion">Version of the jni targeted, default to JNI 10</param>
+        /// <exception cref="Exception"></exception>
+        public JavaNativeInterface(List<string> options = null, string customJREPath = "", bool AddToExistingJVM = false, JNIVersion targetVersion = JNIVersion.JNI_VERSION_10) {
             // os specific jvm lib names, default for windows 
             string libraryName = "jvm.dll";
             string libFolder = "bin";
@@ -65,7 +74,7 @@ namespace org.daisy.jnet {
             if (customJREPath.Length > 0) {
                 if (customJREPath.EndsWith(libraryName) && File.Exists(customJREPath))
                 {
-                    JavaNativeInterface.__jvmDllPath = customJREPath;
+                    __jvmDllPath = customJREPath;
                 }
                 else
                 {
@@ -78,7 +87,7 @@ namespace org.daisy.jnet {
 
                     if (searchResult.Length > 0)
                     {
-                        JavaNativeInterface.__jvmDllPath = searchResult[0];
+                        __jvmDllPath = searchResult[0];
                     }
                     else
                     {
@@ -89,7 +98,7 @@ namespace org.daisy.jnet {
 
             } 
             
-            if (JavaNativeInterface.__jvmDllPath.Length == 0) {
+            if (__jvmDllPath.Length == 0) {
                 // Search for a java runtime near the current assembly
                 string codeBase = Assembly.GetExecutingAssembly().Location;
                 string assemblyDir = Path.GetDirectoryName(codeBase) + Path.DirectorySeparatorChar;
@@ -97,29 +106,29 @@ namespace org.daisy.jnet {
                 string[] searchResult = Directory.GetFiles(assemblyDir, libraryName, SearchOption.AllDirectories);
 
                 if (searchResult.Length > 0) {
-                    JavaNativeInterface.__jvmDllPath = searchResult[0];
+                    __jvmDllPath = searchResult[0];
                 } else {
                     // Search a JAVA_HOME
                     string envJavaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
                     if (envJavaHome != null && envJavaHome.Length > 0) {
                         searchResult = new string[] { Path.Combine(envJavaHome, libFolder, "server", libraryName) };
                         if (File.Exists(searchResult[0])) {
-                            JavaNativeInterface.__jvmDllPath = searchResult[0];
+                            __jvmDllPath = searchResult[0];
                         }
                     } else {
                         // try to access registry
-                        foreach (string key in JavaNativeInterface.JAVA_REGISTRY_KEYS) {
+                        foreach (string key in JAVA_REGISTRY_KEYS) {
                             string javaVersion = (string)Microsoft.Win32.Registry.GetValue(key, "CurrentVersion", null);
                             if (javaVersion == "") continue;
                             else {
-                                JavaNativeInterface.__javaVersion = javaVersion;
+                                __javaVersion = javaVersion;
                                 string javaKey = Path.Combine(key, javaVersion);
                                 string javaHomeKey = (string)Microsoft.Win32.Registry.GetValue(javaKey, "JavaHome", null);
                                 if (javaHomeKey == "") continue;
                                 else {
                                     searchResult = Directory.GetFiles(javaHomeKey, libraryName, SearchOption.AllDirectories);
                                     if (searchResult.Length > 0) {
-                                        JavaNativeInterface.__jvmDllPath = searchResult[0];
+                                        __jvmDllPath = searchResult[0];
                                         break;
                                     } else continue;
 
@@ -129,7 +138,7 @@ namespace org.daisy.jnet {
                     }
                 }
             }
-            if (JavaNativeInterface.__jvmDllPath.Length == 0)
+            if (__jvmDllPath.Length == 0)
             {
                 throw new Exception(
                     "No Java runtime was found near the program or in your system.\r\n" +
@@ -138,10 +147,11 @@ namespace org.daisy.jnet {
             }
 
 #if DEBUG
-            Console.WriteLine("Using " + JavaNativeInterface.__jvmDllPath);
+            Console.WriteLine("Using " + __jvmDllPath);
 #endif
-            JavaVM.loadAssembly(JavaNativeInterface.__jvmDllPath);
-            LoadVM(options, AddToExistingJVM, targetVersion);
+            JavaVM.loadAssembly(__jvmDllPath);
+            loaded = true;
+            LoadVM(options ?? new List<string>(), AddToExistingJVM, targetVersion);
         }
 
         /// <summary>
@@ -180,17 +190,27 @@ namespace org.daisy.jnet {
             if (!AddToExistingJVM) {
                 IntPtr environment;
                 IntPtr javaVirtualMachine;
-                int result = JavaVM.JNI_CreateJavaVM(out javaVirtualMachine, out environment, &args);
-                if(result == JNIReturnValue.JNI_EEXIST)
+                try
                 {
-                    AttachToCurrentJVM(args);
-                } else if (result != JNIReturnValue.JNI_OK) {
-                    throw new Exception("Cannot create JVM " + result.ToString());
-                } else
+                    int result = JavaVM.JNI_CreateJavaVM(out javaVirtualMachine, out environment, &args);
+                    if (result == JNIReturnValue.JNI_EEXIST)
+                    {
+                        AttachToCurrentJVM(args);
+                    }
+                    else if (result != JNIReturnValue.JNI_OK)
+                    {
+                        throw new Exception("Cannot create JVM " + result.ToString());
+                    }
+                    else
+                    {
+                        jvm = new JavaVM(javaVirtualMachine);
+                        env = new JNIEnv(environment);
+                    }
+                } catch (Exception e)
                 {
-                    jvm = new JavaVM(javaVirtualMachine);
-                    env = new JNIEnv(environment);
+                    
                 }
+                
             } else AttachToCurrentJVM(args);
         }
 
@@ -281,24 +301,31 @@ namespace org.daisy.jnet {
             lock (this)
             {
                 try {
-                
+                    
                     IntPtr? methodId = env?.GetMethodID(javaClass, "<init>", signature);
                     if (methodId == null)
                     {
-                        throw new Exception(string.Format("The constructor with signature {0} was not found on the class referenced by pointer {1}", signature, javaClass.ToString()));
+                        throw new Exception($"the constructor with {signature} does not exist on this class");
                     }
                     IntPtr? javaObject = env?.NewObject(javaClass, methodId.Value, ParseParameters(javaClass, signature, args));
-                    if (javaObject == null)
-                    {
-                        throw new Exception(string.Format("An object instance could not be created by the constructor with signature {0} of the class referenced by pointer {1}", signature, javaClass.ToString()));
-                    }
+                    if (javaObject == null) {
+                        throw new Exception("The object returned was null");
+                     }
                     // Store for disposal
-                    usedObject.Add(javaObject.Value);
+                    usedObjects.Add(javaObject.Value);
                     return javaObject.Value;
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
-                    throw;
+                    StringBuilder exceptionMessage = new StringBuilder($"An error occured while instanciating an object of the class referenced by pointer {javaClass} " +
+                        $"using the constructor with signature {signature}  " +
+                        $"and parameters [");
+                    foreach (object arg in args) {
+                        exceptionMessage.Append(arg.ToString());
+                        exceptionMessage.Append(", ");
+                    }
+                    exceptionMessage.Append("]");
+                    throw new Exception(exceptionMessage.ToString(), e);
                 }
 
             } 
@@ -1141,15 +1168,17 @@ namespace org.daisy.jnet {
                         usedClasses[javaClass.Key] = IntPtr.Zero;
                     }
                 }
-                for (int i = 0, end = usedObject.Count; i < end; ++i)
+                usedClasses.Clear();
+                for (int i = 0, end = usedObjects.Count; i < end; ++i)
                 {
-                    IntPtr javaObject = usedObject[i];
+                    IntPtr javaObject = usedObjects[i];
                     if (javaObject != IntPtr.Zero)
                     {
                         env?.DeleteLocalRef(javaObject);
-                        usedObject[i] = IntPtr.Zero;
+                        usedObjects[i] = IntPtr.Zero;
                     }
                 }
+                usedObjects.Clear();
 
                 if (disposing)
                 {
