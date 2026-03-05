@@ -17,15 +17,12 @@ namespace ApplicationWithIntegratedJRE {
             UriBuilder uri = new UriBuilder(codeBase);
             string workingDir = Path.GetDirectoryName(Uri.UnescapeDataString(uri.Path)) + Path.DirectorySeparatorChar;
 
-
+            // Setting the class path to the jar that containes the classes to use
             List<string> options = new List<string>()
             {
-                "-server",
                 "-Djava.class.path="+workingDir + "target\\SampleJavaAppWithJRE-0.0.1-SNAPSHOT.jar"
             };
 
-            // Setting the class path to the jar that containes the classes to use
-            //options.Add("-Djava.class.path="+workingDir + "target\\SampleJavaAppWithJRE-0.0.1-SNAPSHOT.jar");
             // If your jar need other jars as dependencies, you may need to add them in the classpath :
             // + ";" + workingDir + "target\\dependency.jar"); 
             
