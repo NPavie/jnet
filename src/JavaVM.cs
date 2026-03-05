@@ -4,9 +4,9 @@
 
 using System;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using System.Runtime.ConstrainedExecution;
+using System.Runtime.InteropServices;
 using System.Security;
 
 
@@ -14,8 +14,8 @@ using System.Security;
 namespace org.daisy.jnet {
     public unsafe class JavaVM : IDisposable
     {
-        private IntPtr _jvm;
-        private JNIInvokeInterface _functions;
+        private JavaVM_* _jvm;
+        private JNIInvokeInterfaceLayout _functions;
         public const CallingConvention CC = CallingConvention.Winapi;
 
         private static IntPtr _dllPtr = IntPtr.Zero;
@@ -72,7 +72,7 @@ namespace org.daisy.jnet {
         /// <param name="Args"></param>
         /// <returns></returns>
         [DllImport("jvm", CallingConvention = JavaVM.CC)]
-        internal static extern int JNI_CreateJavaVM(out IntPtr pVM, out IntPtr pEnv, JavaVMInitArgs* Args);
+        internal static extern int JNI_CreateJavaVM([Out] out JavaVM_* pVM, out IntPtr pEnv, JavaVMInitArgs* Args);
 
         /// <summary>
         /// Mapping to JNI C function _JNI_IMPORT_OR_EXPORT_ jint JNICALL JNI_GetDefaultJavaVMInitArgs(void* args);
@@ -90,7 +90,7 @@ namespace org.daisy.jnet {
         /// <param name="jSize2"></param>
         /// <returns></returns>
         [DllImport("jvm", CallingConvention = JavaVM.CC)]
-        internal static extern int JNI_GetCreatedJavaVMs(out IntPtr pVM, int jSize1, [Out] out int jSize2);
+        internal static extern int JNI_GetCreatedJavaVMs([Out] out JavaVM_** pVM, int jSize1, [Out] out int jSize2);
         
 
 
@@ -103,29 +103,29 @@ namespace org.daisy.jnet {
         {            
             [UnmanagedFunctionPointer(JavaVM.CC)]
             [SuppressUnmanagedCodeSecurity]
-            internal delegate int DestroyJavaVM(IntPtr pVM);
+            internal delegate int DestroyJavaVM(JavaVM_* pVM);
 
             [UnmanagedFunctionPointer(JavaVM.CC)]
             [SuppressUnmanagedCodeSecurity]
-            internal delegate int AttachCurrentThread(IntPtr pVM, out IntPtr pEnv, JavaVMInitArgs* Args);
+            internal delegate int AttachCurrentThread(JavaVM_* pVM, out IntPtr pEnv, JavaVMInitArgs* Args);
 
             [UnmanagedFunctionPointer(JavaVM.CC)]
             [SuppressUnmanagedCodeSecurity]
-            internal delegate int DetachCurrentThread(IntPtr pVM);
+            internal delegate int DetachCurrentThread(JavaVM_* pVM);
 
             [UnmanagedFunctionPointer(JavaVM.CC)]
             [SuppressUnmanagedCodeSecurity]
-            internal delegate int GetEnv(IntPtr pVM, out IntPtr pEnv, int Version);
+            internal delegate int GetEnv(JavaVM_* pVM, out IntPtr pEnv, int Version);
             // J2SDK1_4
             [UnmanagedFunctionPointer(JavaVM.CC)]
             [SuppressUnmanagedCodeSecurity]
-            internal delegate int AttachCurrentThreadAsDaemon(IntPtr pVM, out IntPtr pEnv, JavaVMInitArgs* Args);
+            internal delegate int AttachCurrentThreadAsDaemon(JavaVM_* pVM, out IntPtr pEnv, JavaVMInitArgs* Args);
         }
 
         // Have a structure that mimic the same structure of all the methods and offsets of each of the methods
         // in the JavaVM structure in the DLL
         [StructLayout(LayoutKind.Sequential), NativeCppClass]
-        public struct JNIInvokeInterface
+        public struct JNIInvokeInterfaceLayout
         {
             public IntPtr reserved0;
             public IntPtr reserved1;
@@ -138,12 +138,6 @@ namespace org.daisy.jnet {
             public IntPtr AttachCurrentThreadAsDaemon;
         }
 
-        [StructLayout(LayoutKind.Sequential, Size = 4), NativeCppClass]
-        private struct JNIInvokeInterfacePtr
-        {
-            public readonly JNIInvokeInterface* functions;
-        }
-
         private JNIInvokeInterface_.AttachCurrentThread _attachCurrentThread;
         private JNIInvokeInterface_.AttachCurrentThreadAsDaemon _attachCurrentThreadAsDaemon;
         private JNIInvokeInterface_.DestroyJavaVM _destroyJavaVm;
@@ -151,14 +145,20 @@ namespace org.daisy.jnet {
         private JNIInvokeInterface_.GetEnv _getEnv;
 
         
+        [StructLayout(LayoutKind.Sequential), NativeCppClass]
+        public struct JavaVM_
+        {
+            public readonly JNIInvokeInterfaceLayout* functions;
+        }
+
         /// <summary>
         /// 
         /// </summary>
         /// <param name="pointer"></param>
-        public JavaVM(IntPtr pointer)
+        public JavaVM(JavaVM_* pointer)
         {
             this._jvm = pointer;
-            _functions = *(*(JNIInvokeInterfacePtr*)_jvm.ToPointer()).functions;
+            _functions = *(*_jvm).functions;
         }
 
         public static bool ByteToBoolean(byte b)
@@ -271,17 +271,19 @@ namespace org.daisy.jnet {
         public void Dispose()
         {
             Dispose(true);
-            GC.SuppressFinalize(this);
+           GC.SuppressFinalize(this);
         }
 
         ~JavaVM() { Dispose(false); }
 
         protected virtual void Dispose(bool disposing)
         {
-            if (_jvm != IntPtr.Zero)
+            if (_jvm != null)
             {
-                Marshal.FreeCoTaskMem(_jvm);
-                _jvm = IntPtr.Zero;
+                DetachCurrentThread();
+                //DestroyJavaVM();
+                //Marshal.FreeCoTaskMem(_jvm);
+                _jvm = null;
             }           
         }
     }

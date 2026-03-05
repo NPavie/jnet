@@ -13,6 +13,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using static org.daisy.jnet.JavaVM;
 
 namespace org.daisy.jnet {
 
@@ -65,7 +66,7 @@ namespace org.daisy.jnet {
         /// <param name="AddToExistingJVM"></param>
         /// <param name="targetVersion">Version of the jni targeted, default to JNI 10</param>
         /// <exception cref="Exception"></exception>
-        public JavaNativeInterface(List<string> options = null, string customJREPath = "", bool AddToExistingJVM = false, JNIVersion targetVersion = JNIVersion.JNI_VERSION_10) {
+        public JavaNativeInterface(List<string> options = null, string customJREPath = "", bool AddToExistingJVM = true, JNIVersion targetVersion = JNIVersion.JNI_VERSION_10) {
             // os specific jvm lib names, default for windows 
             string libraryName = "jvm.dll";
             string libFolder = "bin";
@@ -189,28 +190,21 @@ namespace org.daisy.jnet {
 
             if (!AddToExistingJVM) {
                 IntPtr environment;
-                IntPtr javaVirtualMachine;
-                try
+                JavaVM_ *javaVirtualMachine;
+                int result = JavaVM.JNI_CreateJavaVM(out javaVirtualMachine, out environment, &args);
+                if (result == JNIReturnValue.JNI_EEXIST)
                 {
-                    int result = JavaVM.JNI_CreateJavaVM(out javaVirtualMachine, out environment, &args);
-                    if (result == JNIReturnValue.JNI_EEXIST)
-                    {
-                        AttachToCurrentJVM(args);
-                    }
-                    else if (result != JNIReturnValue.JNI_OK)
-                    {
-                        throw new Exception("Cannot create JVM " + result.ToString());
-                    }
-                    else
-                    {
-                        jvm = new JavaVM(javaVirtualMachine);
-                        env = new JNIEnv(environment);
-                    }
-                } catch (Exception e)
-                {
-                    
+                    AttachToCurrentJVM(args);
                 }
-                
+                else if (result != JNIReturnValue.JNI_OK)
+                {
+                    throw new Exception("Cannot create JVM, JNI_CreateJavaVM returned " + result.ToString());
+                }
+                else
+                {
+                    jvm = new JavaVM(javaVirtualMachine);
+                    env = new JNIEnv(environment);
+                }
             } else AttachToCurrentJVM(args);
         }
 
@@ -221,19 +215,38 @@ namespace org.daisy.jnet {
             
             int nVMs;
 
-            IntPtr javaVirtualMachine;
-            int res = JavaVM.JNI_GetCreatedJavaVMs(out javaVirtualMachine, 1, out nVMs);
+            JavaVM_** javaVirtualMachineArray;
+            int res = JavaVM.JNI_GetCreatedJavaVMs(out javaVirtualMachineArray, 1, out nVMs);
             if (res != JNIReturnValue.JNI_OK) {
                 throw new Exception("JNI_GetCreatedJavaVMs failed (" + res.ToString() + ")");
             }
-            if (nVMs > 0) {
-                jvm = new JavaVM(javaVirtualMachine);
-                res = jvm.AttachCurrentThread(out env, args);
-                if (res != JNIReturnValue.JNI_OK) {
+            if(nVMs == 0)
+            {
+                IntPtr environment;
+                JavaVM_* javaVirtualMachine;
+                int result = JavaVM.JNI_CreateJavaVM(out javaVirtualMachine, out environment, &args);
+                if (result == JNIReturnValue.JNI_EEXIST)
+                {
+                    AttachToCurrentJVM(args);
+                }
+                else if (result != JNIReturnValue.JNI_OK)
+                {
+                    throw new Exception("Cannot create JVM, JNI_CreateJavaVM returned " + result.ToString());
+                }
+                else
+                {
+                    jvm = new JavaVM(javaVirtualMachine);
+                    env = new JNIEnv(environment);
+                }
+            } else {
+                JavaVM_* vm = nVMs > 1 ? javaVirtualMachineArray[0] : (JavaVM_*)javaVirtualMachineArray;
+                jvm = new JavaVM(vm);
+                res = jvm.AttachCurrentThread(out env, null);
+                if (res != JNIReturnValue.JNI_OK)
+                {
                     throw new Exception("AttachCurrentThread failed (" + res.ToString() + ")");
                 }
             }
-            
         }
 
 
@@ -1159,42 +1172,23 @@ namespace org.daisy.jnet {
         protected virtual void Dispose(bool disposing) {
             lock (this)
             {
-                // free native resources if there are any.
-                foreach (KeyValuePair<string, IntPtr> javaClass in usedClasses)
-                {
-                    if (javaClass.Value != IntPtr.Zero)
-                    {
-                        env?.DeleteGlobalRef(javaClass.Value);
-                        usedClasses[javaClass.Key] = IntPtr.Zero;
-                    }
-                }
                 usedClasses.Clear();
-                for (int i = 0, end = usedObjects.Count; i < end; ++i)
-                {
-                    IntPtr javaObject = usedObjects[i];
-                    if (javaObject != IntPtr.Zero)
-                    {
-                        env?.DeleteLocalRef(javaObject);
-                        usedObjects[i] = IntPtr.Zero;
-                    }
-                }
                 usedObjects.Clear();
-
                 if (disposing)
                 {
-                    // free managed resources
-                    if (jvm != null)
-                    {
-                        jvm.Dispose();
-                        jvm = null;
-                    }
-
                     if (env != null)
                     {
                         env.Dispose();
                         env = null;
-                        
+
                     }
+                    // free managed resources
+                    if (jvm != null)
+                    {
+                        jvm.DetachCurrentThread();
+                        jvm = null;
+                    }
+
                 }
             }
             

@@ -43,6 +43,7 @@ using jobjectRefType = System.IntPtr;
 
 using JNIEnvPtr = System.IntPtr;
 using System.Collections.Generic;
+using static org.daisy.jnet.JavaVM;
 
 // const char * types are mapped by [MarshalAs(UnmanagedType.LPStr)] string in delegation declaration
 
@@ -89,9 +90,9 @@ namespace org.daisy.jnet {
             }
 
             if (javaVM == null) {
-                IntPtr jvm;
+                JavaVM_** jvm;
                 getJavaVM.Invoke(Env, out jvm);
-                javaVM = new JavaVM(jvm);
+                javaVM = new JavaVM(jvm[0]);
             }
             return javaVM;
         }
@@ -1657,7 +1658,7 @@ namespace org.daisy.jnet {
             if (disposing) {
                 // free managed resources
                 if (javaVM != null) {
-                    javaVM.Dispose();
+                    //javaVM.Dispose();
                     javaVM = null;
                 }
             }
@@ -2155,7 +2156,7 @@ namespace org.daisy.jnet {
         internal delegate int GetIntField(JNIEnvPtr env, jobject obj, jfieldID fieldID);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
-        internal delegate int GetJavaVM(JNIEnvPtr env, out IntPtr vm);
+        internal delegate int GetJavaVM(JNIEnvPtr env, out JavaVM_** vm);
 
         [UnmanagedFunctionPointer(JavaVM.CC)]
         internal delegate long* GetLongArrayElements(JNIEnvPtr env, jlongArray array, byte* isCopy);
